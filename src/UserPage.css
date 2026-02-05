@@ -1,0 +1,103 @@
+.user-page-container {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%);
+}
+
+.user-header {
+  background-color: #8B2E2E;
+  color: #FFD700;
+  padding: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.user-header-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.user-logo-img {
+  height: 80px;
+  width: auto;
+  object-fit: contain;
+}
+
+.user-header h1 {
+  font-size: 2.5rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+.logout-btn {
+  background-color: white;
+  color: #8B2E2E;
+  border: none;
+  padding: 0.6rem 1.5rem;
+  border-radius: 50px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 1rem;
+}
+
+.logout-btn:hover {
+  background-color: #FFD700;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.user-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.welcome-card {
+  background: white;
+  border-radius: 20px;
+  padding: 3rem 2.5rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  width: 100%;
+  max-width: 500px;
+  border: 3px solid #8B2E2E;
+  text-align: center;
+}
+
+.welcome-card h2 {
+  color: #8B2E2E;
+  font-size: 2rem;
+  margin-bottom: 1rem;
+  font-weight: 700;
+}
+
+.welcome-card p {
+  color: #333;
+  font-size: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.user-info {
+  background-color: #f9f9f9;
+  padding: 1.5rem;
+  border-radius: 10px;
+  margin-top: 2rem;
+  text-align: left;
+}
+
+.user-info p {
+  color: #333;
+  margin: 0.5rem 0;
+  font-size: 0.95rem;
+}
+
+.user-info strong {
+  color: #8B2E2E;
+}
