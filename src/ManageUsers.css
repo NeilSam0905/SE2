@@ -1,0 +1,38 @@
+.page-container {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #f5e6d3;
+}
+
+.page-content {
+  flex: 1;
+  padding: 2rem;
+}
+
+.page-content h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #000;
+  margin-bottom: 1rem;
+}
+
+.page-content p {
+  font-size: 1.125rem;
+  color: #333;
+}
+
+@media (max-width: 768px) {
+  .page-content {
+    padding: 1rem;
+  }
+
+  .page-content h1 {
+    font-size: 1.5rem;
+  }
+
+  .page-content p {
+    font-size: 1rem;
+  }
+}
