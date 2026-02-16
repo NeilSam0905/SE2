@@ -140,8 +140,14 @@
   font-size: 1.125rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.3s;
   white-space: nowrap;
+  position: relative;
+}
+
+.nav-tab:hover {
+  color: #fff;
+  transform: translateY(-2px);
 }
 
 .nav-tab.active {
@@ -149,4 +155,9 @@
   color: #000;
   border-radius: 50px;
   font-weight: 600;
+}
+
+.nav-tab.active:hover {
+  color: #000;
+  transform: translateY(0);
 }
