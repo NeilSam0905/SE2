@@ -1,14 +1,38 @@
 .page-container {
   width: 100%;
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
   background-color: #f5e6d3;
+  overflow: hidden;
 }
 
 .page-content {
   flex: 1;
   padding: 2rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Custom Scrollbar */
+.page-content::-webkit-scrollbar {
+  width: 12px;
+}
+
+.page-content::-webkit-scrollbar-track {
+  background: #d4c4a8;
+  border-radius: 10px;
+  margin: 5px;
+}
+
+.page-content::-webkit-scrollbar-thumb {
+  background: #8B4513;
+  border-radius: 10px;
+  border: 2px solid #d4c4a8;
+}
+
+.page-content::-webkit-scrollbar-thumb:hover {
+  background: #6d3410;
 }
 
 .page-content h1 {

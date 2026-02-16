@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import './Navbar.css'
 import logoImage from '../images/Staff View.png'
+import menuIcon from '../public/Menu Icon Logo.webp'
 
-function Navbar({ onLogout, activePage }) {
+function Navbar({ onLogout, activePage, user = { name: 'Admin User', role: 'Administrator' } }) {
   const [showDropdown, setShowDropdown] = useState(false)
+  const [showMenu, setShowMenu] = useState(true)
 
   return (
     <nav className="navbar">
@@ -26,24 +28,39 @@ function Navbar({ onLogout, activePage }) {
         </div>
 
         <div className="navbar-account">
-          <div 
-            className="account-circle"
-            onClick={() => setShowDropdown(!showDropdown)}
+          <button 
+            className="menu-toggle"
+            onClick={() => setShowMenu(!showMenu)}
+            aria-label="Toggle menu"
           >
-            <img 
-              src="/logo_placeholder.png" 
-              alt="Account" 
-              className="account-img"
-            />
-            <svg 
-              className={`dropdown-arrow ${showDropdown ? 'open' : ''}`}
-              width="12" 
-              height="8" 
-              viewBox="0 0 12 8" 
-              fill="none"
-            >
-              <path d="M1 1L6 6L11 1" stroke="#f4c27a" strokeWidth="2" strokeLinecap="round"/>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <path d="M3 6h18M3 12h18M3 18h18" stroke="#f4c27a" strokeWidth="2" strokeLinecap="round"/>
             </svg>
+          </button>
+          <div className="user-info">
+            <div className="user-text">
+              <span className="user-name">{user.name}</span>
+              <span className="user-role">{user.role}</span>
+            </div>
+            <div 
+              className="account-circle"
+              onClick={() => setShowDropdown(!showDropdown)}
+            >
+              <img 
+                src="/logo_placeholder.png" 
+                alt="Account" 
+                className="account-img"
+              />
+              <svg 
+                className={`dropdown-arrow ${showDropdown ? 'open' : ''}`}
+                width="12" 
+                height="8" 
+                viewBox="0 0 12 8" 
+                fill="none"
+              >
+                <path d="M1 1L6 6L11 1" stroke="#f4c27a" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+            </div>
           </div>
           
           {showDropdown && (
@@ -54,11 +71,13 @@ function Navbar({ onLogout, activePage }) {
         </div>
       </div>
 
+      {showMenu && (
       <div className="navbar-tabs">
         <button className={`nav-tab ${activePage === 'dashboard' ? 'active' : ''}`}>
           Dashboard
         </button>
         <button className={`nav-tab ${activePage === 'menu' ? 'active' : ''}`}>
+          <img src={menuIcon} alt="Menu" className="nav-tab-icon" />
           Menu
         </button>
         <button className={`nav-tab ${activePage === 'pending' ? 'active' : ''}`}>
@@ -68,6 +87,7 @@ function Navbar({ onLogout, activePage }) {
           Completed Orders
         </button>
       </div>
+      )}
     </nav>
   )
 }

@@ -51,6 +51,11 @@
 .time-filters {
   display: flex;
   gap: 1rem;
+  position: relative;
+}
+
+.filter-wrapper {
+  position: relative;
 }
 
 .filter-btn {
@@ -77,6 +82,162 @@
 .filter-btn .arrow {
   font-size: 0.875rem;
   margin-left: 0.25rem;
+}
+
+/* Calendar Dropdown */
+.calendar-dropdown {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  background-color: #fff;
+  border: 3px solid #000;
+  border-radius: 12px;
+  padding: 1rem;
+  z-index: 1000;
+  min-width: 280px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #000;
+}
+
+.calendar-header button {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  transition: color 0.2s;
+  color: #000;
+}
+
+.calendar-header button:hover {
+  color: #6a1b1a;
+}
+
+.calendar-header span {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #000;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.25rem;
+}
+
+.calendar-day-header {
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.75rem;
+  padding: 0.5rem 0;
+  color: #000;
+}
+
+.calendar-day {
+  text-align: center;
+  padding: 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+  color: #000;
+}
+
+.calendar-day:hover:not(.empty) {
+  background-color: #f5e6d3;
+}
+
+.calendar-day.today {
+  background-color: #6a1b1a;
+  color: #f4c27a;
+  font-weight: 700;
+}
+
+.calendar-day.empty {
+  cursor: default;
+}
+
+.calendar-week-note {
+  padding: 0.75rem;
+  color: #000;
+  font-weight: 600;
+}
+
+/* Monthly Calendar */
+.calendar-dropdown.monthly {
+  min-width: 240px;
+}
+
+.months-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.month-item {
+  text-align: center;
+  padding: 0.75rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: all 0.2s;
+  border: 2px solid transparent;
+  color: #000;
+}
+
+.month-item:hover {
+  background-color: #f5e6d3;
+}
+
+.month-item.selected {
+  background-color: #6a1b1a;
+  color: #f4c27a;
+  border-color: #6a1b1a;
+}
+
+/* Yearly Calendar */
+.calendar-dropdown.yearly {
+  min-width: 200px;
+}
+
+.years-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.year-item {
+  text-align: center;
+  padding: 0.75rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: all 0.2s;
+  border: 2px solid transparent;
+  color: #000;
+}
+
+.year-item:hover {
+  background-color: #f5e6d3;
+}
+
+.year-item.selected {
+  background-color: #6a1b1a;
+  color: #f4c27a;
+  border-color: #6a1b1a;
 }
 
 .dashboard-section-wrapper {
@@ -160,6 +321,36 @@
 .stat-change .vs-text {
   color: #666;
   font-size: 0.85rem;
+}
+
+.ratio-value {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #000;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.ratio-part {
+  display: inline-block;
+}
+
+.ratio-sep {
+  font-weight: 800;
+}
+
+.ratio-labels {
+  display: flex;
+  justify-content: space-between;
+  color: #666;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.ratio-label {
+  color: #666;
 }
 
 /* Main Grid */
@@ -287,6 +478,18 @@
   overflow-y: auto;
   max-height: 350px;
   padding-right: 0.5rem;
+}
+
+.most-sold-category {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.most-sold-category-title {
+  font-weight: 800;
+  color: #000;
+  margin-top: 0.25rem;
 }
 
 /* Custom Scrollbar for Most Sold List */
@@ -431,6 +634,15 @@
   flex-wrap: wrap;
 }
 
+.trend-axis-label {
+  font-weight: 700;
+  color: #000;
+  background: #fff;
+  border: 2px solid #000;
+  border-radius: 10px;
+  padding: 0.35rem 0.6rem;
+}
+
 .real-time-order-section {
   grid-column: 2;
   grid-row: 1;
@@ -509,6 +721,15 @@
 
 .order-details {
   flex: 1;
+}
+
+.order-stamp {
+  margin-left: auto;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #666;
+  white-space: nowrap;
+  padding-left: 0.75rem;
 }
 
 .order-number {
