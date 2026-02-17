@@ -13,14 +13,30 @@ function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [currentPage, setCurrentPage] = useState('dashboard')
   const [error, setError] = useState('')
+  const [userRole, setUserRole] = useState('admin')
+  const [userName, setUserName] = useState('Admin User')
 
   const handleLogin = (e) => {
     e.preventDefault()
     setError('')
-    
+
     if (email === 'admin' && password === 'admin123') {
+      setUserRole('admin')
+      setUserName('Admin User')
       setIsLoggedIn(true)
-    } else {
+      setCurrentPage('dashboard')
+      return
+    }
+
+    if (email === 'staff' && password === 'staff123') {
+      setUserRole('staff')
+      setUserName('Staff User')
+      setIsLoggedIn(true)
+      setCurrentPage('pending')
+      return
+    }
+
+    {
       setError('Invalid email or password')
       setEmail('')
       setPassword('')
@@ -29,25 +45,33 @@ function App() {
 
   const handleLogout = () => {
     setIsLoggedIn(false)
+    setUserRole('admin')
+    setUserName('Admin User')
     setCurrentPage('dashboard')
   }
 
   const handleNavigate = (page) => {
+    if (userRole === 'staff') {
+      const allowed = new Set(['pending', 'completed'])
+      setCurrentPage(allowed.has(page) ? page : 'pending')
+      return
+    }
+
     setCurrentPage(page)
   }
 
   if (isLoggedIn) {
     switch (currentPage) {
       case 'menu':
-        return <Menu onLogout={handleLogout} onNavigate={handleNavigate} />
+        return <Menu onLogout={handleLogout} onNavigate={handleNavigate} userRole={userRole} userName={userName} />
       case 'pending':
-        return <PendingOrders onLogout={handleLogout} onNavigate={handleNavigate} />
+        return <PendingOrders onLogout={handleLogout} onNavigate={handleNavigate} userRole={userRole} userName={userName} />
       case 'completed':
-        return <CompletedOrders onLogout={handleLogout} onNavigate={handleNavigate} />
+        return <CompletedOrders onLogout={handleLogout} onNavigate={handleNavigate} userRole={userRole} userName={userName} />
       case 'users':
-        return <ManageUsers onLogout={handleLogout} onNavigate={handleNavigate} />
+        return <ManageUsers onLogout={handleLogout} onNavigate={handleNavigate} userRole={userRole} userName={userName} />
       default:
-        return <Dashboard onLogout={handleLogout} onNavigate={handleNavigate} />
+        return <Dashboard onLogout={handleLogout} onNavigate={handleNavigate} userRole={userRole} userName={userName} />
     }
   }
 

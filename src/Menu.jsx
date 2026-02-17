@@ -3,7 +3,7 @@ import Navbar from './elements/Navbar'
 import './Menu.css'
 import ConfirmModal from './elements/ConfirmModal'
 
-function Menu({ onLogout, onNavigate }) {
+function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User' }) {
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingProduct, setEditingProduct] = useState(null)
@@ -182,6 +182,46 @@ function Menu({ onLogout, onNavigate }) {
       status: 'NOT AVAILABLE',
       type: 'OTHERS',
       image: '/product2.jpg'
+    },
+    {
+      id: 21,
+      name: 'Coke',
+      price: 30.00,
+      status: 'AVAILABLE',
+      type: 'DRINKS',
+      image: '/product1.jpg'
+    },
+    {
+      id: 22,
+      name: 'Iced Tea',
+      price: 45.00,
+      status: 'AVAILABLE',
+      type: 'DRINKS',
+      image: '/product3.jpg'
+    },
+    {
+      id: 23,
+      name: 'Calamansi Juice',
+      price: 50.00,
+      status: 'AVAILABLE',
+      type: 'DRINKS',
+      image: '/product4.jpg'
+    },
+    {
+      id: 24,
+      name: 'Bottled Water',
+      price: 20.00,
+      status: 'AVAILABLE',
+      type: 'DRINKS',
+      image: '/product2.jpg'
+    },
+    {
+      id: 25,
+      name: 'Hot Coffee',
+      price: 55.00,
+      status: 'NOT AVAILABLE',
+      type: 'DRINKS',
+      image: '/product1.jpg'
     }
   ])
 
@@ -343,7 +383,13 @@ function Menu({ onLogout, onNavigate }) {
 
   return (
     <div className="page-container menu-page">
-      <Navbar onLogout={onLogout} activePage="menu" onNavigate={onNavigate} />
+      <Navbar
+        onLogout={onLogout}
+        activePage="menu"
+        onNavigate={onNavigate}
+        role={userRole}
+        user={{ name: userName, role: userRole === 'admin' ? 'Administrator' : 'Staff' }}
+      />
       <div className="page-content menu-content">
         <div className="menu-controls">
           <div className="menu-mu-search" role="search">
@@ -363,7 +409,7 @@ function Menu({ onLogout, onNavigate }) {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder=""
+              placeholder="Search the menu"
               aria-label="Search products"
             />
             {searchTerm.trim() ? (
@@ -488,7 +534,7 @@ function Menu({ onLogout, onNavigate }) {
                     type="text"
                     value={newProduct.name}
                     onChange={(e) => setNewProduct({...newProduct, name: e.target.value})}
-                    placeholder="TOKWA'T BABOY"
+                    placeholder="Add Product Name"
                   />
                 </div>
                 <div className="form-row">

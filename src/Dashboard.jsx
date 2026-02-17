@@ -4,13 +4,51 @@ import Navbar from './elements/Navbar'
 import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { formatInteger } from './utils/numberFormat'
 
-function Dashboard({ onLogout, onNavigate }) {
+function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User' }) {
   const [timeFilter, setTimeFilter] = useState('Daily')
   const [showDailyCalendar, setShowDailyCalendar] = useState(false)
   const [showWeeklyCalendar, setShowWeeklyCalendar] = useState(false)
   const [showMonthlyCalendar, setShowMonthlyCalendar] = useState(false)
   const [showYearlyCalendar, setShowYearlyCalendar] = useState(false)
   const [selectedDate, setSelectedDate] = useState(new Date())
+
+  const [prepItemFilter, setPrepItemFilter] = useState('ALL')
+  const [showPrepFilter, setShowPrepFilter] = useState(false)
+
+  const prepFilterItems = useMemo(() => {
+    return [
+      { key: 'ALL', label: 'All' },
+      { key: 'Sinigang na Baka', label: 'Sinigang na Baka' },
+      { key: 'Lumpiang Shanghai', label: 'Lumpiang Shanghai' },
+      { key: 'Ensalada', label: 'Ensalada' },
+      { key: 'Daing na Bangus', label: 'Daing na Bangus' },
+      { key: 'Kare-Kare', label: 'Kare-Kare' },
+      { key: 'Bulalo', label: 'Bulalo' },
+      { key: 'Sisig', label: 'Sisig' },
+      { key: 'Coke', label: 'Coke' },
+      { key: 'Iced Tea', label: 'Iced Tea' },
+      { key: 'Calamansi Juice', label: 'Calamansi Juice' },
+      { key: 'Bottled Water', label: 'Bottled Water' },
+      { key: 'Hot Coffee', label: 'Hot Coffee' },
+    ]
+  }, [])
+
+  const prepTimeByItem = useMemo(() => {
+    return {
+      'Sinigang na Baka': '6 mins',
+      'Lumpiang Shanghai': '4 mins',
+      Ensalada: '3 mins',
+      'Daing na Bangus': '7 mins',
+      'Kare-Kare': '8 mins',
+      Bulalo: '9 mins',
+      Sisig: '5 mins',
+      Coke: '1 min',
+      'Iced Tea': '2 mins',
+      'Calamansi Juice': '2 mins',
+      'Bottled Water': '1 min',
+      'Hot Coffee': '3 mins',
+    }
+  }, [])
 
   const handleTimeFilterClick = (filter) => {
     setTimeFilter(filter)
@@ -112,6 +150,11 @@ function Dashboard({ onLogout, onNavigate }) {
   }
 
   const statsData = getStatsData()
+
+  const displayedPrepTime = useMemo(() => {
+    if (prepItemFilter === 'ALL') return statsData.prepTime
+    return prepTimeByItem[prepItemFilter] || statsData.prepTime
+  }, [prepItemFilter, prepTimeByItem, statsData.prepTime])
 
   const comparisonLabel = useMemo(() => {
     switch (timeFilter) {
@@ -318,7 +361,13 @@ function Dashboard({ onLogout, onNavigate }) {
 
   return (
     <div className="dashboard-container">
-      <Navbar onLogout={onLogout} activePage="dashboard" onNavigate={onNavigate} />
+      <Navbar
+        onLogout={onLogout}
+        activePage="dashboard"
+        onNavigate={onNavigate}
+        role={userRole}
+        user={{ name: userName, role: userRole === 'admin' ? 'Administrator' : 'Staff' }}
+      />
 
       <div className="dashboard-content">
         <div className="dashboard-header">
@@ -495,8 +544,36 @@ function Dashboard({ onLogout, onNavigate }) {
             </div>
 
             <div className="stat-card">
-              <h3>Avg Prep Time</h3>
-              <div className="stat-value">{statsData.prepTime}</div>
+              <div className="stat-card-head">
+                <h3>Avg Prep Time</h3>
+                <div className="prep-filter-row prep-filter-row--top">
+                  <button
+                    type="button"
+                    className="prep-filter-btn"
+                    onClick={() => setShowPrepFilter((v) => !v)}
+                  >
+                    {prepItemFilter === 'ALL' ? 'All' : prepItemFilter} <span className="arrow">▼</span>
+                  </button>
+                  {showPrepFilter ? (
+                    <div className="prep-filter-menu">
+                      {prepFilterItems.map((opt) => (
+                        <button
+                          key={opt.key}
+                          type="button"
+                          className={`prep-filter-item ${prepItemFilter === opt.key ? 'active' : ''}`}
+                          onClick={() => {
+                            setPrepItemFilter(opt.key)
+                            setShowPrepFilter(false)
+                          }}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+              <div className="stat-value">{displayedPrepTime}</div>
               <div className="stat-change negative">
                 <span className="arrow-down">↓</span> {statsData.prepChange} <span className="vs-text">{comparisonLabel}</span>
               </div>

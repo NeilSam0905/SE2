@@ -3,12 +3,22 @@ import Navbar from './elements/Navbar'
 import './CompletedOrders.css'
 import { formatMoney } from './utils/numberFormat'
 
-function CompletedOrders({ onLogout, onNavigate }) {
+function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User' }) {
   const todayKey = new Date().toDateString()
+  const isAdmin = userRole === 'admin'
 
   const contentRef = useRef(null)
 
   const [orders, setOrders] = useState(() => {
+    let persisted = []
+    try {
+      const raw = localStorage.getItem('completedOrders')
+      const parsed = raw ? JSON.parse(raw) : []
+      persisted = Array.isArray(parsed) ? parsed : []
+    } catch {
+      persisted = []
+    }
+
     const base = [
       {
         id: 263,
@@ -89,7 +99,16 @@ function CompletedOrders({ onLogout, onNavigate }) {
       }
     })
 
-    return [...base, ...generated]
+    const baseAll = [...base, ...generated]
+    const deduped = [...persisted, ...baseAll].filter(Boolean).reduce((acc, o) => {
+      if (!o || !o.id) return acc
+      if (acc.seen.has(o.id)) return acc
+      acc.seen.add(o.id)
+      acc.items.push(o)
+      return acc
+    }, { seen: new Set(), items: [] }).items
+
+    return deduped
   })
 
   const [detailsOpen, setDetailsOpen] = useState(false)
@@ -266,7 +285,13 @@ function CompletedOrders({ onLogout, onNavigate }) {
 
   return (
     <div className="page-container completed-orders-page">
-      <Navbar onLogout={onLogout} activePage="completed" onNavigate={onNavigate} />
+      <Navbar
+        onLogout={onLogout}
+        activePage="completed"
+        onNavigate={onNavigate}
+        role={userRole}
+        user={{ name: userName, role: userRole === 'admin' ? 'Administrator' : 'Staff' }}
+      />
 
       <div className="page-content completed-orders-content" ref={contentRef}>
         <div className="orders-layout">
@@ -349,149 +374,151 @@ function CompletedOrders({ onLogout, onNavigate }) {
           ) : null}
         </div>
 
-        <div className="completed-table-section">
-          <h2 className="completed-table-title">Completed Order History</h2>
-          <div className="completed-table">
-            <div className="completed-table-head">
-              <div>Order</div>
-              <div>Date</div>
-              <div>Total</div>
-              <div>Status</div>
-              <div>Type</div>
-              <div>Action</div>
-            </div>
-            <div className="completed-table-body">
-              {pagedHistoryOrders.map((o) => (
-                <div key={o.id} className="completed-row">
-                  <div className="cell">Order #{o.id}</div>
-                  <div className="cell">{o.dateObj.toLocaleDateString()}</div>
-                  <div className="cell">₱ {formatMoney(o.total)}</div>
-                  <div className="cell">
-                    <button
-                      type="button"
-                      className={`status-pill ${o.paid ? 'paid' : 'unpaid'} clickable`}
-                      onClick={() => togglePaid(o.id)}
-                      aria-label="Toggle paid status"
-                    >
-                      {o.paid ? 'PAID' : 'UNPAID'}
-                    </button>
+        {isAdmin ? (
+          <div className="completed-table-section">
+            <h2 className="completed-table-title">Completed Order History</h2>
+            <div className="completed-table">
+              <div className="completed-table-head">
+                <div>Order</div>
+                <div>Date</div>
+                <div>Total</div>
+                <div>Status</div>
+                <div>Type</div>
+                <div>Action</div>
+              </div>
+              <div className="completed-table-body">
+                {pagedHistoryOrders.map((o) => (
+                  <div key={o.id} className="completed-row">
+                    <div className="cell">Order #{o.id}</div>
+                    <div className="cell">{o.dateObj.toLocaleDateString()}</div>
+                    <div className="cell">₱ {formatMoney(o.total)}</div>
+                    <div className="cell">
+                      <button
+                        type="button"
+                        className={`status-pill ${o.paid ? 'paid' : 'unpaid'} clickable`}
+                        onClick={() => togglePaid(o.id)}
+                        aria-label="Toggle paid status"
+                      >
+                        {o.paid ? 'PAID' : 'UNPAID'}
+                      </button>
+                    </div>
+                    <div className="cell">{o.orderType}</div>
+                    <div className="cell">
+                      <button
+                        type="button"
+                        className="view-btn"
+                        onClick={() => {
+                          setSelectedOrderId(o.id)
+                          setDetailsOpen(true)
+                          if (contentRef.current) {
+                            contentRef.current.scrollTop = 0
+                          }
+                        }}
+                      >
+                        VIEW
+                      </button>
+                    </div>
                   </div>
-                  <div className="cell">{o.orderType}</div>
-                  <div className="cell">
-                    <button
-                      type="button"
-                      className="view-btn"
-                      onClick={() => {
-                        setSelectedOrderId(o.id)
-                        setDetailsOpen(true)
-                        if (contentRef.current) {
-                          contentRef.current.scrollTop = 0
-                        }
-                      }}
-                    >
-                      VIEW
-                    </button>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
 
-          <div className="completed-table-nav" aria-label="Completed orders navigation">
-            <button
-              type="button"
-              className="completed-nav-btn"
-              onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
-              disabled={historyPage <= 1}
-            >
-              PREV
-            </button>
-            <div className="completed-nav-label">
-              Page {Math.min(Math.max(1, historyPage), historyPageCount)} of {historyPageCount}
+            <div className="completed-table-nav" aria-label="Completed orders navigation">
+              <button
+                type="button"
+                className="completed-nav-btn"
+                onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
+                disabled={historyPage <= 1}
+              >
+                PREV
+              </button>
+              <div className="completed-nav-label">
+                Page {Math.min(Math.max(1, historyPage), historyPageCount)} of {historyPageCount}
+              </div>
+              <button
+                type="button"
+                className="completed-nav-btn"
+                onClick={() => setHistoryPage((p) => Math.min(historyPageCount, p + 1))}
+                disabled={historyPage >= historyPageCount}
+              >
+                NEXT
+              </button>
             </div>
-            <button
-              type="button"
-              className="completed-nav-btn"
-              onClick={() => setHistoryPage((p) => Math.min(historyPageCount, p + 1))}
-              disabled={historyPage >= historyPageCount}
-            >
-              NEXT
-            </button>
-          </div>
 
-          <div className="export-section" aria-label="Export completed orders">
-            <div className="export-title">Export</div>
+            <div className="export-section" aria-label="Export completed orders">
+              <div className="export-title">Export</div>
 
-            <div className="export-controls">
-              <label className="export-field">
-                <span>Format</span>
-                <select value={exportFormat} onChange={(e) => setExportFormat(e.target.value)}>
-                  <option value="csv">CSV</option>
-                  <option value="excel">Excel</option>
-                </select>
-              </label>
-
-              <label className="export-field">
-                <span>Period</span>
-                <select value={exportPeriod} onChange={(e) => setExportPeriod(e.target.value)}>
-                  <option value="monthly">Monthly</option>
-                  <option value="quarterly">Quarterly</option>
-                  <option value="yearly">Yearly</option>
-                  <option value="range">Range</option>
-                </select>
-              </label>
-
-              {exportPeriod === 'monthly' ? (
+              <div className="export-controls">
                 <label className="export-field">
-                  <span>Month</span>
-                  <input type="month" value={exportMonth} onChange={(e) => setExportMonth(e.target.value)} />
+                  <span>Format</span>
+                  <select value={exportFormat} onChange={(e) => setExportFormat(e.target.value)}>
+                    <option value="csv">CSV</option>
+                    <option value="excel">Excel</option>
+                  </select>
                 </label>
-              ) : null}
 
-              {exportPeriod === 'quarterly' ? (
-                <>
+                <label className="export-field">
+                  <span>Period</span>
+                  <select value={exportPeriod} onChange={(e) => setExportPeriod(e.target.value)}>
+                    <option value="monthly">Monthly</option>
+                    <option value="quarterly">Quarterly</option>
+                    <option value="yearly">Yearly</option>
+                    <option value="range">Range</option>
+                  </select>
+                </label>
+
+                {exportPeriod === 'monthly' ? (
                   <label className="export-field">
-                    <span>Quarter</span>
-                    <select value={exportQuarter} onChange={(e) => setExportQuarter(e.target.value)}>
-                      <option value="Q1">Q1</option>
-                      <option value="Q2">Q2</option>
-                      <option value="Q3">Q3</option>
-                      <option value="Q4">Q4</option>
-                    </select>
+                    <span>Month</span>
+                    <input type="month" value={exportMonth} onChange={(e) => setExportMonth(e.target.value)} />
                   </label>
+                ) : null}
+
+                {exportPeriod === 'quarterly' ? (
+                  <>
+                    <label className="export-field">
+                      <span>Quarter</span>
+                      <select value={exportQuarter} onChange={(e) => setExportQuarter(e.target.value)}>
+                        <option value="Q1">Q1</option>
+                        <option value="Q2">Q2</option>
+                        <option value="Q3">Q3</option>
+                        <option value="Q4">Q4</option>
+                      </select>
+                    </label>
+                    <label className="export-field">
+                      <span>Year</span>
+                      <input type="number" value={exportYear} onChange={(e) => setExportYear(e.target.value)} />
+                    </label>
+                  </>
+                ) : null}
+
+                {exportPeriod === 'yearly' ? (
                   <label className="export-field">
                     <span>Year</span>
                     <input type="number" value={exportYear} onChange={(e) => setExportYear(e.target.value)} />
                   </label>
-                </>
-              ) : null}
+                ) : null}
 
-              {exportPeriod === 'yearly' ? (
-                <label className="export-field">
-                  <span>Year</span>
-                  <input type="number" value={exportYear} onChange={(e) => setExportYear(e.target.value)} />
-                </label>
-              ) : null}
+                {exportPeriod === 'range' ? (
+                  <>
+                    <label className="export-field">
+                      <span>Start</span>
+                      <input type="date" value={exportStart} onChange={(e) => setExportStart(e.target.value)} />
+                    </label>
+                    <label className="export-field">
+                      <span>End</span>
+                      <input type="date" value={exportEnd} onChange={(e) => setExportEnd(e.target.value)} />
+                    </label>
+                  </>
+                ) : null}
 
-              {exportPeriod === 'range' ? (
-                <>
-                  <label className="export-field">
-                    <span>Start</span>
-                    <input type="date" value={exportStart} onChange={(e) => setExportStart(e.target.value)} />
-                  </label>
-                  <label className="export-field">
-                    <span>End</span>
-                    <input type="date" value={exportEnd} onChange={(e) => setExportEnd(e.target.value)} />
-                  </label>
-                </>
-              ) : null}
-
-              <button type="button" className="export-btn" onClick={handleExport} disabled={exportDisabled}>
-                EXPORT
-              </button>
+                <button type="button" className="export-btn" onClick={handleExport} disabled={exportDisabled}>
+                  EXPORT
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        ) : null}
       </div>
     </div>
   )

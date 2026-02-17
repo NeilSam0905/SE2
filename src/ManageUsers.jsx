@@ -4,7 +4,7 @@ import './ManageUsers.css'
 import { formatInteger } from './utils/numberFormat'
 import ConfirmModal from './elements/ConfirmModal'
 
-function ManageUsers({ onLogout, onNavigate }) {
+function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User' }) {
   const [searchTerm, setSearchTerm] = useState('')
 
   const [showAddModal, setShowAddModal] = useState(false)
@@ -135,7 +135,13 @@ function ManageUsers({ onLogout, onNavigate }) {
 
   return (
     <div className="page-container manage-users-page">
-      <Navbar onLogout={onLogout} activePage="users" onNavigate={onNavigate} />
+      <Navbar
+        onLogout={onLogout}
+        activePage="users"
+        onNavigate={onNavigate}
+        role={userRole}
+        user={{ name: userName, role: userRole === 'admin' ? 'Administrator' : 'Staff' }}
+      />
 
       <div className="manage-users-content">
         <h1 className="manage-users-title">Manager Users</h1>
@@ -185,7 +191,7 @@ function ManageUsers({ onLogout, onNavigate }) {
                 className="mu-search-input"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder=""
+                placeholder="Search users"
                 aria-label="Search users"
               />
               {searchTerm.trim() ? (

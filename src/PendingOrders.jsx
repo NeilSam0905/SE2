@@ -3,7 +3,7 @@ import Navbar from './elements/Navbar'
 import './PendingOrders.css'
 import { formatMoney } from './utils/numberFormat'
 
-function PendingOrders({ onLogout, onNavigate }) {
+function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User' }) {
   const [orders, setOrders] = useState([
     {
       id: 263,
@@ -31,6 +31,28 @@ function PendingOrders({ onLogout, onNavigate }) {
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [selectedOrderId, setSelectedOrderId] = useState(null)
 
+  const pushCompletedOrder = (order) => {
+    try {
+      const key = 'completedOrders'
+      const raw = localStorage.getItem(key)
+      const current = raw ? JSON.parse(raw) : []
+      const list = Array.isArray(current) ? current : []
+
+      const completed = {
+        id: order.id,
+        date: new Date().toISOString(),
+        orderType: order.orderType,
+        paid: Boolean(order.paid),
+        items: (order.items || []).map(({ served, ...rest }) => rest),
+      }
+
+      const deduped = [completed, ...list.filter((o) => o && o.id !== completed.id)]
+      localStorage.setItem(key, JSON.stringify(deduped))
+    } catch {
+      // ignore storage failures
+    }
+  }
+
   const ordersWithTotals = useMemo(() => {
     return orders.map((o) => {
       const total = o.items.reduce((sum, it) => sum + Number(it.price || 0) * Number(it.qty || 0), 0)
@@ -46,29 +68,57 @@ function PendingOrders({ onLogout, onNavigate }) {
   }, [ordersWithTotals, selectedOrderId])
 
   const setItemServed = (orderId, itemId, served) => {
-    setOrders((prev) =>
-      prev.map((o) => {
+    setOrders((prev) => {
+      const next = prev.map((o) => {
         if (o.id !== orderId) return o
         return {
           ...o,
           items: o.items.map((it) => (it.id === itemId ? { ...it, served: Boolean(served) } : it)),
         }
       })
-    )
+
+      const updated = next.find((o) => o.id === orderId)
+      const allServed = updated ? updated.items.every((it) => Boolean(it.served)) : false
+      if (!allServed) return next
+
+      if (updated) pushCompletedOrder(updated)
+      if (selectedOrderId === orderId) {
+        setDetailsOpen(false)
+        setSelectedOrderId(null)
+      }
+      return next.filter((o) => o.id !== orderId)
+    })
   }
 
   const setAllServed = (orderId) => {
-    setOrders((prev) =>
-      prev.map((o) => {
+    setOrders((prev) => {
+      const next = prev.map((o) => {
         if (o.id !== orderId) return o
         return { ...o, items: o.items.map((it) => ({ ...it, served: true })) }
       })
-    )
+
+      const updated = next.find((o) => o.id === orderId)
+      const allServed = updated ? updated.items.every((it) => Boolean(it.served)) : false
+      if (!allServed) return next
+
+      if (updated) pushCompletedOrder(updated)
+      if (selectedOrderId === orderId) {
+        setDetailsOpen(false)
+        setSelectedOrderId(null)
+      }
+      return next.filter((o) => o.id !== orderId)
+    })
   }
 
   return (
     <div className="page-container pending-orders-page">
-      <Navbar onLogout={onLogout} activePage="pending" onNavigate={onNavigate} />
+      <Navbar
+        onLogout={onLogout}
+        activePage="pending"
+        onNavigate={onNavigate}
+        role={userRole}
+        user={{ name: userName, role: userRole === 'admin' ? 'Administrator' : 'Staff' }}
+      />
 
       <div className="page-content pending-orders-content">
         <div className="orders-layout">

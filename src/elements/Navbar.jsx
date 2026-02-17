@@ -4,12 +4,20 @@ import logoImage from '../../images/Staff View.png'
 import menuIcon from '../../public/Menu Icon Logo.webp'
 import ConfirmModal from './ConfirmModal'
 
-function Navbar({ onLogout, activePage, onNavigate, user = { name: 'Admin User', role: 'Administrator' } }) {
+function Navbar({
+  onLogout,
+  activePage,
+  onNavigate,
+  role = 'admin',
+  user = { name: 'Admin User', role: 'Administrator' },
+}) {
   const [showDropdown, setShowDropdown] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const [tabsVisible, setTabsVisible] = useState(true)
   const [isMobile, setIsMobile] = useState(false)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
+
+  const isStaff = role === 'staff'
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768)
@@ -105,19 +113,23 @@ function Navbar({ onLogout, activePage, onNavigate, user = { name: 'Admin User',
       {/* Desktop Navigation - can be hidden by toggle */}
       {tabsVisible && (
       <div className="navbar-tabs">
-        <button 
-          className={`nav-tab ${activePage === 'dashboard' ? 'active' : ''}`}
-          onClick={() => onNavigate && onNavigate('dashboard')}
-        >
-          Dashboard
-        </button>
-        <button 
-          className={`nav-tab ${activePage === 'menu' ? 'active' : ''}`}
-          onClick={() => onNavigate && onNavigate('menu')}
-        >
-          <img src={menuIcon} alt="Menu" className="nav-tab-icon" />
-          Menu
-        </button>
+        {!isStaff ? (
+          <button 
+            className={`nav-tab ${activePage === 'dashboard' ? 'active' : ''}`}
+            onClick={() => onNavigate && onNavigate('dashboard')}
+          >
+            Dashboard
+          </button>
+        ) : null}
+        {!isStaff ? (
+          <button 
+            className={`nav-tab ${activePage === 'menu' ? 'active' : ''}`}
+            onClick={() => onNavigate && onNavigate('menu')}
+          >
+            <img src={menuIcon} alt="Menu" className="nav-tab-icon" />
+            Menu
+          </button>
+        ) : null}
         <button 
           className={`nav-tab ${activePage === 'pending' ? 'active' : ''}`}
           onClick={() => onNavigate && onNavigate('pending')}
@@ -130,12 +142,14 @@ function Navbar({ onLogout, activePage, onNavigate, user = { name: 'Admin User',
         >
           Completed Orders
         </button>
-        <button 
-          className={`nav-tab ${activePage === 'users' ? 'active' : ''}`}
-          onClick={() => onNavigate && onNavigate('users')}
-        >
-          Manage Users
-        </button>
+        {!isStaff ? (
+          <button 
+            className={`nav-tab ${activePage === 'users' ? 'active' : ''}`}
+            onClick={() => onNavigate && onNavigate('users')}
+          >
+            Manage Users
+          </button>
+        ) : null}
       </div>
       )}
 
@@ -144,18 +158,22 @@ function Navbar({ onLogout, activePage, onNavigate, user = { name: 'Admin User',
         <div className="mobile-menu-panel" onClick={() => setShowMenu(false)}>
           <div className="mobile-panel-content" onClick={(e) => e.stopPropagation()}>
             <div className="mobile-panel-links">
-              <button 
-                className={`mobile-link ${activePage === 'dashboard' ? 'active' : ''}`}
-                onClick={() => { onNavigate && onNavigate('dashboard'); setShowMenu(false) }}
-              >
-                Dashboard
-              </button>
-              <button 
-                className={`mobile-link ${activePage === 'menu' ? 'active' : ''}`}
-                onClick={() => { onNavigate && onNavigate('menu'); setShowMenu(false) }}
-              >
-                Menu
-              </button>
+              {!isStaff ? (
+                <button 
+                  className={`mobile-link ${activePage === 'dashboard' ? 'active' : ''}`}
+                  onClick={() => { onNavigate && onNavigate('dashboard'); setShowMenu(false) }}
+                >
+                  Dashboard
+                </button>
+              ) : null}
+              {!isStaff ? (
+                <button 
+                  className={`mobile-link ${activePage === 'menu' ? 'active' : ''}`}
+                  onClick={() => { onNavigate && onNavigate('menu'); setShowMenu(false) }}
+                >
+                  Menu
+                </button>
+              ) : null}
               <button 
                 className={`mobile-link ${activePage === 'pending' ? 'active' : ''}`}
                 onClick={() => { onNavigate && onNavigate('pending'); setShowMenu(false) }}
@@ -168,12 +186,14 @@ function Navbar({ onLogout, activePage, onNavigate, user = { name: 'Admin User',
               >
                 Completed Orders
               </button>
-              <button 
-                className={`mobile-link ${activePage === 'users' ? 'active' : ''}`}
-                onClick={() => { onNavigate && onNavigate('users'); setShowMenu(false) }}
-              >
-                Manage Users
-              </button>
+              {!isStaff ? (
+                <button 
+                  className={`mobile-link ${activePage === 'users' ? 'active' : ''}`}
+                  onClick={() => { onNavigate && onNavigate('users'); setShowMenu(false) }}
+                >
+                  Manage Users
+                </button>
+              ) : null}
             </div>
           </div>
         </div>
