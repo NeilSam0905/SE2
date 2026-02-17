@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import './Dashboard.css'
 import Navbar from './elements/Navbar'
 import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { formatInteger } from './utils/numberFormat'
 
 function Dashboard({ onLogout, onNavigate }) {
   const [timeFilter, setTimeFilter] = useState('Daily')
@@ -54,7 +55,7 @@ function Dashboard({ onLogout, onNavigate }) {
     switch (timeFilter) {
       case 'Daily':
         return {
-          revenue: '75,745',
+          revenue: 75745,
           orders: 231,
           prepTime: '5 mins',
           dineInPct: 62,
@@ -65,7 +66,7 @@ function Dashboard({ onLogout, onNavigate }) {
         }
       case 'Weekly':
         return {
-          revenue: '510,120',
+          revenue: 510120,
           orders: 1620,
           prepTime: '6 mins',
           dineInPct: 58,
@@ -76,7 +77,7 @@ function Dashboard({ onLogout, onNavigate }) {
         }
       case 'Monthly':
         return {
-          revenue: '2,250,323',
+          revenue: 2250323,
           orders: 6840,
           prepTime: '6 mins',
           dineInPct: 55,
@@ -87,7 +88,7 @@ function Dashboard({ onLogout, onNavigate }) {
         }
       case 'Yearly':
         return {
-          revenue: '25,000,000',
+          revenue: 25000000,
           orders: 78500,
           prepTime: '5.5 mins',
           dineInPct: 60,
@@ -98,7 +99,7 @@ function Dashboard({ onLogout, onNavigate }) {
         }
       default:
         return {
-          revenue: '75,745',
+          revenue: 75745,
           orders: 231,
           prepTime: '5 mins',
           dineInPct: 62,
@@ -127,7 +128,7 @@ function Dashboard({ onLogout, onNavigate }) {
     }
   }, [timeFilter])
 
-  const salesAmount = useMemo(() => `₱ ${statsData.revenue}`, [statsData.revenue])
+  const salesAmount = useMemo(() => `₱ ${formatInteger(statsData.revenue)}`, [statsData.revenue])
 
   const salesData = useMemo(() => {
     switch (timeFilter) {
@@ -169,42 +170,42 @@ function Dashboard({ onLogout, onNavigate }) {
     switch (timeFilter) {
       case 'Daily':
         return [
-          { category: 'Meat', name: 'Sinigang na Baka', orders: 24, revenue: '₱2480' },
-          { category: 'Meat', name: 'Crispy Pork Sisig', orders: 15, revenue: '₱980' },
-          { category: 'Vegetables', name: 'Labong Saluyot', orders: 18, revenue: '₱1400' },
-          { category: 'Drinks', name: 'Coke', orders: 20, revenue: '₱2400' },
-          { category: 'Others', name: 'Rice', orders: 32, revenue: '₱1600' },
+          { category: 'Meat', name: 'Sinigang na Baka', orders: 24, revenue: 2480 },
+          { category: 'Meat', name: 'Crispy Pork Sisig', orders: 15, revenue: 980 },
+          { category: 'Vegetables', name: 'Labong Saluyot', orders: 18, revenue: 1400 },
+          { category: 'Drinks', name: 'Coke', orders: 20, revenue: 2400 },
+          { category: 'Others', name: 'Rice', orders: 32, revenue: 1600 },
         ]
       case 'Weekly':
         return [
-          { category: 'Meat', name: 'Daing na Bangus', orders: 120, revenue: '₱14400' },
-          { category: 'Meat', name: 'Dinuguan', orders: 98, revenue: '₱9800' },
-          { category: 'Vegetables', name: 'Pinakbet', orders: 76, revenue: '₱7600' },
-          { category: 'Drinks', name: 'Iced Tea', orders: 110, revenue: '₱8800' },
-          { category: 'Others', name: 'Rice', orders: 260, revenue: '₱13000' },
+          { category: 'Meat', name: 'Daing na Bangus', orders: 120, revenue: 14400 },
+          { category: 'Meat', name: 'Dinuguan', orders: 98, revenue: 9800 },
+          { category: 'Vegetables', name: 'Pinakbet', orders: 76, revenue: 7600 },
+          { category: 'Drinks', name: 'Iced Tea', orders: 110, revenue: 8800 },
+          { category: 'Others', name: 'Rice', orders: 260, revenue: 13000 },
         ]
       case 'Monthly':
         return [
-          { category: 'Meat', name: 'Sinigang na Baka', orders: 620, revenue: '₱62000' },
-          { category: 'Meat', name: 'Crispy Pork Sisig', orders: 510, revenue: '₱38250' },
-          { category: 'Vegetables', name: 'Labong Saluyot', orders: 430, revenue: '₱32250' },
-          { category: 'Drinks', name: 'Coke', orders: 740, revenue: '₱59200' },
-          { category: 'Others', name: 'Rice', orders: 1800, revenue: '₱90000' },
+          { category: 'Meat', name: 'Sinigang na Baka', orders: 620, revenue: 62000 },
+          { category: 'Meat', name: 'Crispy Pork Sisig', orders: 510, revenue: 38250 },
+          { category: 'Vegetables', name: 'Labong Saluyot', orders: 430, revenue: 32250 },
+          { category: 'Drinks', name: 'Coke', orders: 740, revenue: 59200 },
+          { category: 'Others', name: 'Rice', orders: 1800, revenue: 90000 },
         ]
       case 'Yearly':
         return [
-          { category: 'Meat', name: 'Sinigang na Baka', orders: 7200, revenue: '₱720000' },
-          { category: 'Meat', name: 'Crispy Pork Sisig', orders: 6100, revenue: '₱457500' },
-          { category: 'Vegetables', name: 'Labong Saluyot', orders: 4800, revenue: '₱360000' },
-          { category: 'Drinks', name: 'Coke', orders: 8200, revenue: '₱656000' },
-          { category: 'Others', name: 'Rice', orders: 25000, revenue: '₱1250000' },
+          { category: 'Meat', name: 'Sinigang na Baka', orders: 7200, revenue: 720000 },
+          { category: 'Meat', name: 'Crispy Pork Sisig', orders: 6100, revenue: 457500 },
+          { category: 'Vegetables', name: 'Labong Saluyot', orders: 4800, revenue: 360000 },
+          { category: 'Drinks', name: 'Coke', orders: 8200, revenue: 656000 },
+          { category: 'Others', name: 'Rice', orders: 25000, revenue: 1250000 },
         ]
       default:
         return [
-          { category: 'Meat', name: 'Sinigang na Baka', orders: 24, revenue: '₱2480' },
-          { category: 'Vegetables', name: 'Labong Saluyot', orders: 18, revenue: '₱1400' },
-          { category: 'Drinks', name: 'Coke', orders: 20, revenue: '₱2400' },
-          { category: 'Others', name: 'Rice', orders: 32, revenue: '₱1600' },
+          { category: 'Meat', name: 'Sinigang na Baka', orders: 24, revenue: 2480 },
+          { category: 'Vegetables', name: 'Labong Saluyot', orders: 18, revenue: 1400 },
+          { category: 'Drinks', name: 'Coke', orders: 20, revenue: 2400 },
+          { category: 'Others', name: 'Rice', orders: 32, revenue: 1600 },
         ]
     }
   }, [timeFilter])
@@ -479,7 +480,7 @@ function Dashboard({ onLogout, onNavigate }) {
           <div className="stats-grid">
             <div className="stat-card">
               <h3>Total Sales</h3>
-              <div className="stat-value">₱ {statsData.revenue}</div>
+              <div className="stat-value">₱ {formatInteger(statsData.revenue)}</div>
               <div className="stat-change positive">
                 <span className="arrow-up">↑</span> {statsData.revenueChange} <span className="vs-text">{comparisonLabel}</span>
               </div>
@@ -487,7 +488,7 @@ function Dashboard({ onLogout, onNavigate }) {
 
             <div className="stat-card">
               <h3>Total Orders</h3>
-              <div className="stat-value">{statsData.orders}</div>
+              <div className="stat-value">{formatInteger(statsData.orders)}</div>
               <div className="stat-change positive">
                 <span className="arrow-up">↑</span> {statsData.ordersChange} <span className="vs-text">{comparisonLabel}</span>
               </div>
@@ -584,8 +585,8 @@ function Dashboard({ onLogout, onNavigate }) {
                           <div className="product-image"></div>
                           <span className="product-name">{product.name}</span>
                         </div>
-                        <span className="product-orders">{product.orders}</span>
-                        <span className="product-revenue">{product.revenue}</span>
+                        <span className="product-orders">{formatInteger(product.orders)}</span>
+                        <span className="product-revenue">₱{formatInteger(product.revenue)}</span>
                       </div>
                     ))}
                   </div>
@@ -609,10 +610,10 @@ function Dashboard({ onLogout, onNavigate }) {
                   <XAxis dataKey="time" stroke="#666" />
                   <YAxis 
                     stroke="#666" 
-                    tickFormatter={(value) => `₱${value}`}
+                    tickFormatter={(value) => `₱${formatInteger(value)}`}
                   />
                   <Tooltip 
-                    formatter={(value) => [`₱${value}`, 'Sales']}
+                    formatter={(value) => [`₱${formatInteger(value)}`, 'Sales']}
                     contentStyle={{ backgroundColor: '#fff', border: '2px solid #000', borderRadius: '8px' }}
                   />
                   <Line type="monotone" dataKey="sales" stroke="#6a1b1a" strokeWidth={3} dot={{ r: 4 }} />
@@ -647,11 +648,11 @@ function Dashboard({ onLogout, onNavigate }) {
               <div className="monitoring-content">
                 <div className="monitoring-row">
                   <span className="monitoring-label">Pending Orders</span>
-                  <span className="monitoring-count">17</span>
+                  <span className="monitoring-count">{formatInteger(17)}</span>
                 </div>
                 <div className="monitoring-row">
                   <span className="monitoring-label">Completed Orders</span>
-                  <span className="monitoring-count">23</span>
+                  <span className="monitoring-count">{formatInteger(23)}</span>
                 </div>
               </div>
               <div className="orders-text">Orders</div>
@@ -664,3 +665,4 @@ function Dashboard({ onLogout, onNavigate }) {
 }
 
 export default Dashboard
+

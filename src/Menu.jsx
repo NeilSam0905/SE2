@@ -12,6 +12,7 @@ function Menu({ onLogout, onNavigate }) {
   const [resultState, setResultState] = useState({ open: false, title: '', message: '' })
   const [searchTerm, setSearchTerm] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('ALL')
+  const [showCategoryFilter, setShowCategoryFilter] = useState(false)
   const [newProduct, setNewProduct] = useState({
     name: '',
     price: '',
@@ -341,66 +342,86 @@ function Menu({ onLogout, onNavigate }) {
   }
 
   return (
-    <div className="page-container">
+    <div className="page-container menu-page">
       <Navbar onLogout={onLogout} activePage="menu" onNavigate={onNavigate} />
-      <div className="page-content">
+      <div className="page-content menu-content">
         <div className="menu-controls">
-          <div className="menu-search">
+          <div className="menu-mu-search" role="search">
+            <svg
+              className="menu-mu-search-icon"
+              width="22"
+              height="22"
+              viewBox="0 0 20 20"
+              fill="none"
+              aria-hidden="true"
+            >
+              <circle cx="9" cy="9" r="6" stroke="#000" strokeWidth="2" />
+              <path d="M14 14L18 18" stroke="#000" strokeWidth="2" strokeLinecap="round" />
+            </svg>
             <input
+              className="menu-mu-search-input"
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search product..."
+              placeholder=""
+              aria-label="Search products"
             />
+            {searchTerm.trim() ? (
+              <button
+                type="button"
+                className="menu-mu-search-clear"
+                onClick={() => setSearchTerm('')}
+                aria-label="Clear search"
+              >
+                x
+              </button>
+            ) : null}
           </div>
-          <div className="menu-controls-right">
-            <div className="menu-filter-buttons">
-              <button
-                className={`category-filter-btn ${categoryFilter === 'ALL' ? 'active' : ''}`}
-                onClick={() => setCategoryFilter('ALL')}
-                type="button"
-              >
-                All
-              </button>
-              <button
-                className={`category-filter-btn ${categoryFilter === 'MEAT' ? 'active' : ''}`}
-                onClick={() => setCategoryFilter('MEAT')}
-                type="button"
-              >
-                Meat
-              </button>
-              <button
-                className={`category-filter-btn ${categoryFilter === 'VEGETABLE' ? 'active' : ''}`}
-                onClick={() => setCategoryFilter('VEGETABLE')}
-                type="button"
-              >
-                Vegetables
-              </button>
-              <button
-                className={`category-filter-btn ${categoryFilter === 'DRINKS' ? 'active' : ''}`}
-                onClick={() => setCategoryFilter('DRINKS')}
-                type="button"
-              >
-                Drinks
-              </button>
-              <button
-                className={`category-filter-btn ${categoryFilter === 'OTHERS' ? 'active' : ''}`}
-                onClick={() => setCategoryFilter('OTHERS')}
-                type="button"
-              >
-                Others
-              </button>
-            </div>
 
-            <button className="add-product-btn" onClick={handleAddProduct} type="button">
-              <img src="/add_product_button.png" alt="Add" className="add-icon-img" />
-              ADD PRODUCT
+          <div className="menu-mu-filter-wrapper">
+            <button type="button" className="menu-mu-pill-btn" onClick={() => setShowCategoryFilter((v) => !v)}>
+              FILTER
             </button>
+            {showCategoryFilter ? (
+              <div className="menu-mu-filter-menu">
+                {[
+                  { key: 'ALL', label: 'All' },
+                  { key: 'MEAT', label: 'Meat' },
+                  { key: 'VEGETABLE', label: 'Vegetables' },
+                  { key: 'DRINKS', label: 'Drinks' },
+                  { key: 'OTHERS', label: 'Others' },
+                ].map((opt) => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    className={`menu-mu-filter-item ${categoryFilter === opt.key ? 'active' : ''}`}
+                    onClick={() => {
+                      setCategoryFilter(opt.key)
+                      setShowCategoryFilter(false)
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
+
+          <button className="add-product-btn menu-mu-add" onClick={handleAddProduct} type="button">
+            <img src="/add_product_button.png" alt="Add" className="add-icon-img" />
+            ADD PRODUCT
+          </button>
         </div>
 
-        <div className="menu-table">
-          <div className="menu-table-body">
+        <div className="menu-table menu-table-box">
+          <div className="menu-table-head">
+            <div>Product</div>
+            <div>Status</div>
+            <div>Price</div>
+            <div>Action</div>
+          </div>
+
+          <div className="menu-table-scroll">
             {categorizedProducts.map((group) => (
               <div key={group.label} className="menu-category-group">
                 <div className="menu-category-header">
@@ -408,14 +429,9 @@ function Menu({ onLogout, onNavigate }) {
                     <span>{group.label}</span>
                   </div>
                 </div>
-                <div className="menu-category-columns">
-                  <div className="menu-category-col">Product</div>
-                  <div className="menu-category-col">Status</div>
-                  <div className="menu-category-col">Price</div>
-                  <div className="menu-category-col menu-category-col-action"></div>
-                </div>
+
                 {group.items.map((product) => (
-                  <div key={product.id} className="menu-row">
+                  <div key={product.id} className="menu-row menu-row-grid">
                     <div className="menu-cell product-cell">
                       <img src={product.image} alt={product.name} className="product-image" />
                       <span className="product-name">{product.name}</span>
@@ -430,9 +446,9 @@ function Menu({ onLogout, onNavigate }) {
                         <option value="NOT AVAILABLE">NOT AVAILABLE</option>
                       </select>
                     </div>
-                    <div className="menu-cell price-cell">₱ {product.price.toFixed(2)}</div>
+                    <div className="menu-cell price-cell">₱ {Number(product.price).toFixed(2)}</div>
                     <div className="menu-cell action-cell">
-                      <button className="edit-btn" onClick={() => handleEdit(product.id)}>
+                      <button className="edit-btn" onClick={() => handleEdit(product.id)} type="button">
                         EDIT
                       </button>
                     </div>
