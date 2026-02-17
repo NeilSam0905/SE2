@@ -1,16 +1,36 @@
-# React + Vite
+# SE2 Frontend (React + Vite)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This repository contains the frontend UI for the SE2 project.
 
-Currently, two official plugins are available:
+## Frontend
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### Requirements
+- Node.js (LTS recommended)
+- npm (comes with Node.js)
 
-## React Compiler
+### Install
+From the project root:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+npm install
 
-## Expanding the ESLint configuration
+### Run (development)
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+npm run dev
+
+### Main libraries used
+Installed via `npm install` (already listed in `package.json`):
+- React + React DOM
+- Vite
+- `recharts` (charts)
+- `xlsx` (Excel export)
+- `chart.js` + `react-chartjs-2` (charts)
+- `bootstrap` + `react-bootstrap` (UI)
+
+If you ever need to install one manually:
+npm install recharts xlsx chart.js react-chartjs-2 bootstrap react-bootstrap
+
+
+## Backend
+
+### Supabase
+Supabase is intended to be used as the backend (auth/database/storage).
