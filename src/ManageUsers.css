@@ -1,11 +1,10 @@
 .page-container {
   width: 100%;
-  min-height: 100dvh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   background-color: #f5e6d3;
-  overflow-x: hidden;
-  overflow-y: visible;
+  overflow: hidden;
 }
 
 .manage-users-content {
@@ -121,6 +120,27 @@
   max-height: 240px;
   overflow-y: auto;
   padding-right: 0.25rem;
+}
+
+/* Custom Scrollbar (match Dashboard) */
+.mu-stat-tooltip-list::-webkit-scrollbar {
+  width: 12px;
+}
+
+.mu-stat-tooltip-list::-webkit-scrollbar-track {
+  background: #d4c4a8;
+  border-radius: 10px;
+  margin: 5px;
+}
+
+.mu-stat-tooltip-list::-webkit-scrollbar-thumb {
+  background: #8B4513;
+  border-radius: 10px;
+  border: 2px solid #d4c4a8;
+}
+
+.mu-stat-tooltip-list::-webkit-scrollbar-thumb:hover {
+  background: #6d3410;
 }
 
 .mu-stat-tooltip-item {
