@@ -12,6 +12,9 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
   const [showYearlyCalendar, setShowYearlyCalendar] = useState(false)
   const [selectedDate, setSelectedDate] = useState(new Date())
 
+  const [trendFilter, setTrendFilter] = useState('Daily')
+  const [showTrendFilter, setShowTrendFilter] = useState(false)
+
   const [prepItemFilter, setPrepItemFilter] = useState('ALL')
   const [showPrepFilter, setShowPrepFilter] = useState(false)
 
@@ -50,25 +53,37 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
     }
   }, [])
 
-  const handleTimeFilterClick = (filter) => {
+  const closeAllCalendars = () => {
+    setShowDailyCalendar(false)
+    setShowWeeklyCalendar(false)
+    setShowMonthlyCalendar(false)
+    setShowYearlyCalendar(false)
+  }
+
+  const selectTimeFilter = (filter) => {
+    setTimeFilter(filter)
+    closeAllCalendars()
+  }
+
+  const toggleTimeFilterCalendar = (filter) => {
     setTimeFilter(filter)
     if (filter === 'Daily') {
-      setShowDailyCalendar(!showDailyCalendar)
+      setShowDailyCalendar((v) => !v)
       setShowWeeklyCalendar(false)
       setShowMonthlyCalendar(false)
       setShowYearlyCalendar(false)
     } else if (filter === 'Weekly') {
-      setShowWeeklyCalendar(!showWeeklyCalendar)
+      setShowWeeklyCalendar((v) => !v)
       setShowDailyCalendar(false)
       setShowMonthlyCalendar(false)
       setShowYearlyCalendar(false)
     } else if (filter === 'Monthly') {
-      setShowMonthlyCalendar(!showMonthlyCalendar)
+      setShowMonthlyCalendar((v) => !v)
       setShowDailyCalendar(false)
       setShowWeeklyCalendar(false)
       setShowYearlyCalendar(false)
     } else if (filter === 'Yearly') {
-      setShowYearlyCalendar(!showYearlyCalendar)
+      setShowYearlyCalendar((v) => !v)
       setShowDailyCalendar(false)
       setShowWeeklyCalendar(false)
       setShowMonthlyCalendar(false)
@@ -83,8 +98,23 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
     return { firstDay, daysInMonth, year, month }
   }
 
-  const months = ['January', 'February', 'March', 'April', 'May', 'June', 
-                  'July', 'August', 'September', 'October', 'November', 'December']
+  const months = useMemo(
+    () => [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ],
+    [],
+  )
   
   const years = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - 5 + i)
 
@@ -267,85 +297,93 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
   }, [mostSoldProducts])
 
   const trendXAxisLabel = useMemo(() => {
-    switch (timeFilter) {
+    switch (trendFilter) {
       case 'Daily':
-        return 'Hours'
+        return 'Day'
       case 'Weekly':
-        return 'Day'
+        return 'Week'
       case 'Monthly':
-        return 'Day'
+        return 'Month'
       case 'Yearly':
-        return 'Months'
+        return 'Year'
       default:
-        return 'Hours'
+        return 'Day'
     }
-  }, [timeFilter])
+  }, [trendFilter])
 
   const trendData = useMemo(() => {
-    switch (timeFilter) {
-      case 'Daily':
-        return [
-          { time: '8 am', sales: 1000 },
-          { time: '9 am', sales: 1500 },
-          { time: '10 am', sales: 2000 },
-          { time: '11 am', sales: 3000 },
-          { time: '12 pm', sales: 5000 },
-          { time: '1 pm', sales: 4500 },
-          { time: '2 pm', sales: 3500 },
-          { time: '3 pm', sales: 2800 },
-          { time: '4 pm', sales: 2500 },
-        ]
-      case 'Weekly':
-        return [
-          { time: 'Mon', sales: 15000 },
-          { time: 'Tue', sales: 18000 },
-          { time: 'Wed', sales: 22000 },
-          { time: 'Thu', sales: 20000 },
-          { time: 'Fri', sales: 25000 },
-          { time: 'Sat', sales: 30000 },
-          { time: 'Sun', sales: 28000 },
-        ]
-      case 'Monthly':
-        // Include month in the x-axis labels (e.g., "Feb 1") instead of plain numbers.
-        const monthAbbr = months[selectedDate.getMonth()].slice(0, 3)
-        return [
-          { time: `${monthAbbr} 1`, sales: 72000 },
-          { time: `${monthAbbr} 5`, sales: 98000 },
-          { time: `${monthAbbr} 10`, sales: 105000 },
-          { time: `${monthAbbr} 15`, sales: 112000 },
-          { time: `${monthAbbr} 20`, sales: 96000 },
-          { time: `${monthAbbr} 25`, sales: 120000 },
-          { time: `${monthAbbr} 30`, sales: 115000 },
-        ]
-      case 'Yearly':
-        return [
-          { time: 'Jan', sales: 1800000 },
-          { time: 'Feb', sales: 1650000 },
-          { time: 'Mar', sales: 1950000 },
-          { time: 'Apr', sales: 2100000 },
-          { time: 'May', sales: 2250000 },
-          { time: 'Jun', sales: 2050000 },
-          { time: 'Jul', sales: 2400000 },
-          { time: 'Aug', sales: 2350000 },
-          { time: 'Sep', sales: 2200000 },
-          { time: 'Oct', sales: 2500000 },
-          { time: 'Nov', sales: 2650000 },
-          { time: 'Dec', sales: 2800000 },
-        ]
-      default:
-        return [
-          { time: '8 am', sales: 1000 },
-          { time: '9 am', sales: 1500 },
-          { time: '10 am', sales: 2000 },
-          { time: '11 am', sales: 3000 },
-          { time: '12 pm', sales: 5000 },
-          { time: '1 pm', sales: 4500 },
-          { time: '2 pm', sales: 3500 },
-          { time: '3 pm', sales: 2800 },
-          { time: '4 pm', sales: 2500 },
-        ]
+    const anchor = new Date()
+    anchor.setHours(12, 0, 0, 0)
+
+    const weekdayAbbr = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+    const startOfWeekMonday = (date) => {
+      const d = new Date(date)
+      const day = d.getDay()
+      const diff = (day + 6) % 7
+      d.setDate(d.getDate() - diff)
+      d.setHours(12, 0, 0, 0)
+      return d
     }
-  }, [timeFilter, months, selectedDate])
+
+    const weekOfMonth = (date) => Math.floor((date.getDate() - 1) / 7) + 1
+
+    const monthAbbr = (date) => months[date.getMonth()].slice(0, 3)
+
+    if (trendFilter === 'Daily') {
+      // Past 7 days
+      const days = Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(anchor)
+        d.setDate(anchor.getDate() - (6 - i))
+        const label = weekdayAbbr[d.getDay()]
+        const base = 15000
+        const wave = Math.round(2500 * Math.sin((i / 6) * Math.PI))
+        const sales = base + i * 900 + wave
+        return { time: label, sales }
+      })
+      return days
+    }
+
+    if (trendFilter === 'Weekly') {
+      // Past 4 weeks, month + week number buckets (e.g., "Feb W1")
+      const endWeekStart = startOfWeekMonday(anchor)
+      return Array.from({ length: 4 }, (_, i) => {
+        const weekStart = new Date(endWeekStart)
+        weekStart.setDate(endWeekStart.getDate() - (3 - i) * 7)
+        const wom = weekOfMonth(weekStart)
+        const label = `${monthAbbr(weekStart)} W${wom}`
+        const base = 75000
+        const sales = base + i * 12000 + Math.round(6000 * Math.cos(i))
+        return { time: label, sales }
+      })
+    }
+
+    if (trendFilter === 'Monthly') {
+      // Last 12 months (rolling)
+      return Array.from({ length: 12 }, (_, i) => {
+        const d = new Date(anchor)
+        d.setMonth(anchor.getMonth() - (11 - i))
+        const label = months[d.getMonth()].slice(0, 3)
+        const base = 320000
+        const seasonal = Math.round(45000 * Math.sin((i / 11) * Math.PI * 2))
+        const sales = base + i * 8000 + seasonal
+        return { time: label, sales }
+      })
+    }
+
+    if (trendFilter === 'Yearly') {
+      // Last 5 years including current year
+      const y = anchor.getFullYear()
+      const yearsRange = Array.from({ length: 5 }, (_, i) => y - (4 - i))
+      return yearsRange.map((year, i) => {
+        const base = 14500000
+        const sales = base + i * 1250000 + Math.round(400000 * Math.sin(i))
+        return { time: String(year), sales }
+      })
+    }
+
+    return []
+  }, [months, trendFilter])
 
   const formatMilitaryTime = (date) => {
     return date.toLocaleTimeString([], {
@@ -374,12 +412,22 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
           <h1>Manager Dashboard</h1>
           <div className="time-filters">
             <div className="filter-wrapper">
-              <button 
-                className={`filter-btn ${timeFilter === 'Daily' ? 'active' : ''}`}
-                onClick={() => handleTimeFilterClick('Daily')}
-              >
-                Daily <span className="arrow">▼</span>
-              </button>
+              <div className="filter-row">
+                <button
+                  className={`filter-btn ${timeFilter === 'Daily' ? 'active' : ''}`}
+                  onClick={() => selectTimeFilter('Daily')}
+                >
+                  Daily
+                </button>
+                <button
+                  type="button"
+                  className={`filter-drop-btn ${timeFilter === 'Daily' ? 'active' : ''}`}
+                  onClick={() => toggleTimeFilterCalendar('Daily')}
+                  aria-label="Open daily calendar"
+                >
+                  ▼
+                </button>
+              </div>
               {showDailyCalendar && (
                 <div className="calendar-dropdown">
                   <div className="calendar-header">
@@ -435,12 +483,22 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
               )}
             </div>
             <div className="filter-wrapper">
-              <button 
-                className={`filter-btn ${timeFilter === 'Weekly' ? 'active' : ''}`}
-                onClick={() => handleTimeFilterClick('Weekly')}
-              >
-                Weekly <span className="arrow">▼</span>
-              </button>
+              <div className="filter-row">
+                <button
+                  className={`filter-btn ${timeFilter === 'Weekly' ? 'active' : ''}`}
+                  onClick={() => selectTimeFilter('Weekly')}
+                >
+                  Weekly
+                </button>
+                <button
+                  type="button"
+                  className={`filter-drop-btn ${timeFilter === 'Weekly' ? 'active' : ''}`}
+                  onClick={() => toggleTimeFilterCalendar('Weekly')}
+                  aria-label="Open weekly dropdown"
+                >
+                  ▼
+                </button>
+              </div>
               {showWeeklyCalendar && (
                 <div className="calendar-dropdown">
                   <div className="calendar-header">
@@ -453,12 +511,22 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
               )}
             </div>
             <div className="filter-wrapper">
-              <button 
-                className={`filter-btn ${timeFilter === 'Monthly' ? 'active' : ''}`}
-                onClick={() => handleTimeFilterClick('Monthly')}
-              >
-                Monthly <span className="arrow">▼</span>
-              </button>
+              <div className="filter-row">
+                <button
+                  className={`filter-btn ${timeFilter === 'Monthly' ? 'active' : ''}`}
+                  onClick={() => selectTimeFilter('Monthly')}
+                >
+                  Monthly
+                </button>
+                <button
+                  type="button"
+                  className={`filter-drop-btn ${timeFilter === 'Monthly' ? 'active' : ''}`}
+                  onClick={() => toggleTimeFilterCalendar('Monthly')}
+                  aria-label="Open monthly dropdown"
+                >
+                  ▼
+                </button>
+              </div>
               {showMonthlyCalendar && (
                 <div className="calendar-dropdown monthly">
                   <div className="calendar-header">
@@ -494,12 +562,22 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
               )}
             </div>
             <div className="filter-wrapper">
-              <button 
-                className={`filter-btn ${timeFilter === 'Yearly' ? 'active' : ''}`}
-                onClick={() => handleTimeFilterClick('Yearly')}
-              >
-                Yearly <span className="arrow">▼</span>
-              </button>
+              <div className="filter-row">
+                <button
+                  className={`filter-btn ${timeFilter === 'Yearly' ? 'active' : ''}`}
+                  onClick={() => selectTimeFilter('Yearly')}
+                >
+                  Yearly
+                </button>
+                <button
+                  type="button"
+                  className={`filter-drop-btn ${timeFilter === 'Yearly' ? 'active' : ''}`}
+                  onClick={() => toggleTimeFilterCalendar('Yearly')}
+                  aria-label="Open yearly dropdown"
+                >
+                  ▼
+                </button>
+              </div>
               {showYearlyCalendar && (
                 <div className="calendar-dropdown yearly">
                   <div className="years-grid">
@@ -679,7 +757,37 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
             <div className="dashboard-section sales-trend-section">
               <div className="trend-header">
                 <h2>Sales Trend</h2>
-                <div className="trend-axis-label">{trendXAxisLabel}</div>
+                <div className="trend-right">
+                  <div className="trend-axis-label">{trendXAxisLabel}</div>
+                  <div className="prep-filter-row prep-filter-row--top">
+                    <button
+                      type="button"
+                      className="prep-filter-btn"
+                      onClick={() => setShowTrendFilter((v) => !v)}
+                      aria-label="Sales trend filter"
+                    >
+                      {trendFilter} ▼
+                    </button>
+                    {showTrendFilter ? (
+                      <div className="prep-filter-menu" role="menu" aria-label="Sales trend filter menu">
+                        {['Daily', 'Weekly', 'Monthly', 'Yearly'].map((opt) => (
+                          <button
+                            key={opt}
+                            type="button"
+                            className={`prep-filter-item ${trendFilter === opt ? 'active' : ''}`}
+                            onClick={() => {
+                              setTrendFilter(opt)
+                              setShowTrendFilter(false)
+                            }}
+                            role="menuitem"
+                          >
+                            {opt}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
               </div>
               <ResponsiveContainer width="100%" height={350}>
                 <LineChart data={trendData} margin={{ top: 20, right: 30, left: 90, bottom: 20 }}>

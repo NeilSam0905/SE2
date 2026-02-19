@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import Navbar from './elements/Navbar'
+import ConfirmModal from './elements/ConfirmModal'
 import './PendingOrders.css'
 import { formatMoney } from './utils/numberFormat'
 
@@ -31,6 +32,9 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [selectedOrderId, setSelectedOrderId] = useState(null)
 
+  const [showAllServedConfirm, setShowAllServedConfirm] = useState(false)
+  const [pendingCompleteOrderId, setPendingCompleteOrderId] = useState(null)
+
   const pushCompletedOrder = (order) => {
     try {
       const key = 'completedOrders'
@@ -43,7 +47,7 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
         date: new Date().toISOString(),
         orderType: order.orderType,
         paid: Boolean(order.paid),
-        items: (order.items || []).map(({ served, ...rest }) => rest),
+        items: (order.items || []).map(({ id, name, qty, price }) => ({ id, name, qty, price })),
       }
 
       const deduped = [completed, ...list.filter((o) => o && o.id !== completed.id)]
@@ -67,51 +71,48 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
     return ordersWithTotals.find((o) => o.id === selectedOrderId) || null
   }, [ordersWithTotals, selectedOrderId])
 
+  const drawerOpen = Boolean(detailsOpen && selectedOrder)
+
   const setItemServed = (orderId, itemId, served) => {
-    setOrders((prev) => {
-      const next = prev.map((o) => {
+    setOrders((prev) =>
+      prev.map((o) => {
         if (o.id !== orderId) return o
         return {
           ...o,
           items: o.items.map((it) => (it.id === itemId ? { ...it, served: Boolean(served) } : it)),
         }
-      })
+      }),
+    )
+  }
 
-      const updated = next.find((o) => o.id === orderId)
-      const allServed = updated ? updated.items.every((it) => Boolean(it.served)) : false
-      if (!allServed) return next
+  const completeOrder = (orderId) => {
+    setOrders((prev) => {
+      const updated = prev.find((o) => o.id === orderId)
+      if (!updated) return prev
 
-      if (updated) pushCompletedOrder(updated)
+      const servedAll = {
+        ...updated,
+        items: (updated.items || []).map((it) => ({ ...it, served: true })),
+      }
+
+      pushCompletedOrder(servedAll)
+
       if (selectedOrderId === orderId) {
         setDetailsOpen(false)
         setSelectedOrderId(null)
       }
-      return next.filter((o) => o.id !== orderId)
+
+      return prev.filter((o) => o.id !== orderId)
     })
   }
 
-  const setAllServed = (orderId) => {
-    setOrders((prev) => {
-      const next = prev.map((o) => {
-        if (o.id !== orderId) return o
-        return { ...o, items: o.items.map((it) => ({ ...it, served: true })) }
-      })
-
-      const updated = next.find((o) => o.id === orderId)
-      const allServed = updated ? updated.items.every((it) => Boolean(it.served)) : false
-      if (!allServed) return next
-
-      if (updated) pushCompletedOrder(updated)
-      if (selectedOrderId === orderId) {
-        setDetailsOpen(false)
-        setSelectedOrderId(null)
-      }
-      return next.filter((o) => o.id !== orderId)
-    })
+  const requestCompleteOrder = (orderId) => {
+    setPendingCompleteOrderId(orderId)
+    setShowAllServedConfirm(true)
   }
 
   return (
-    <div className="page-container pending-orders-page">
+    <div className={`page-container pending-orders-page ${drawerOpen ? 'drawer-open' : ''}`}>
       <Navbar
         onLogout={onLogout}
         activePage="pending"
@@ -121,7 +122,7 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
       />
 
       <div className="page-content pending-orders-content">
-        <div className="orders-layout">
+        <div className={`orders-layout ${drawerOpen ? 'drawer-open' : ''}`}>
           <div className="orders-list-panel">
             <div className="orders-list-header">
               <div className="orders-list-col left">Pending Orders</div>
@@ -145,8 +146,14 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
                   </div>
                   <div className="order-card-total">₱ {formatMoney(o.total)}</div>
                   <div className="order-card-status">
-                    <div className="order-card-status-text">
-                      Status: {o.servedCount}/{o.totalCount} Preparing
+                    <div
+                      className={`order-card-status-text ${
+                        o.servedCount === o.totalCount ? 'done' : 'preparing'
+                      }`}
+                    >
+                      {o.servedCount === o.totalCount
+                        ? 'Status: Done'
+                        : `Status: ${o.servedCount}/${o.totalCount} Preparing`}
                     </div>
                     <div className="status-pill unpaid">UNPAID</div>
                   </div>
@@ -156,7 +163,9 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
           </div>
 
           {detailsOpen && selectedOrder ? (
-            <div className="order-details-panel">
+            <>
+              <div className="details-backdrop" role="presentation" onClick={() => setDetailsOpen(false)} />
+              <div className="order-details-panel">
               <button className="details-close" type="button" onClick={() => setDetailsOpen(false)}>
                 {'<'} Close
               </button>
@@ -164,7 +173,9 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
               <div className="details-title">Order Details:</div>
               <div className="details-order">Order #{selectedOrder.id}</div>
               <div className="details-status">
-                Status: {selectedOrder.servedCount}/{selectedOrder.totalCount} Served
+                {selectedOrder.servedCount === selectedOrder.totalCount
+                  ? 'Status: Done'
+                  : `Status: ${selectedOrder.servedCount}/${selectedOrder.totalCount} Served`}
               </div>
 
               <div className="details-items">
@@ -198,14 +209,39 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
                   <span>Order Type:</span>
                   <span className="details-type">{selectedOrder.orderType}</span>
                 </div>
-                <button type="button" className="all-served-btn" onClick={() => setAllServed(selectedOrder.id)}>
+                <button type="button" className="all-served-btn" onClick={() => requestCompleteOrder(selectedOrder.id)}>
                   ALL SERVED
                 </button>
               </div>
-            </div>
+              </div>
+            </>
           ) : null}
         </div>
       </div>
+
+      <ConfirmModal
+        open={showAllServedConfirm}
+        title={
+          <>
+            Confirm order completion?
+            <br />
+            This will move it to Completed Orders.
+          </>
+        }
+        message="Please double-check all items are served before continuing."
+        cancelText="Cancel"
+        confirmText="Yes, complete"
+        onCancel={() => {
+          setShowAllServedConfirm(false)
+          setPendingCompleteOrderId(null)
+        }}
+        onConfirm={() => {
+          const orderId = pendingCompleteOrderId
+          setShowAllServedConfirm(false)
+          setPendingCompleteOrderId(null)
+          if (orderId != null) completeOrder(orderId)
+        }}
+      />
     </div>
   )
 }

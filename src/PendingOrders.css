@@ -99,6 +99,14 @@
   color: #000;
 }
 
+.pending-orders-page .order-card-status-text.preparing {
+  color: #c77700;
+}
+
+.pending-orders-page .order-card-status-text.done {
+  color: #1f9d1f;
+}
+
 .pending-orders-page .status-pill {
   border: 2px solid #000;
   border-radius: 999px;
@@ -121,6 +129,10 @@
   flex-direction: column;
   height: 100%;
   box-sizing: border-box;
+}
+
+.pending-orders-page .details-backdrop {
+  display: none;
 }
 
 .pending-orders-page .details-close {
@@ -274,21 +286,87 @@
 }
 
 @media (max-width: 1100px) {
-  .orders-layout {
+  .pending-orders-page .orders-layout {
     flex-direction: column;
   }
 
-  .orders-list-panel {
+  .pending-orders-page .orders-list-panel {
     min-width: 0;
   }
 
-  .order-details-panel {
+  .pending-orders-page .order-details-panel {
     width: 100%;
     border-radius: 0;
   }
 
-  .order-cards {
+  .pending-orders-page .order-cards {
     padding-right: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .pending-orders-page .page-content {
+    padding: 1rem;
+  }
+
+  .pending-orders-page .orders-list-header {
+    padding: 0.5rem 0.25rem 0.75rem;
+  }
+
+  .pending-orders-page .orders-list-col {
+    font-size: 0.95rem;
+  }
+
+  .pending-orders-page .order-card {
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+    padding: 1.1rem 1rem;
+    min-height: 0;
+  }
+
+  .pending-orders-page .order-card-total {
+    text-align: left;
+    font-size: 1.25rem;
+  }
+
+  .pending-orders-page .order-card-status {
+    align-items: flex-start;
+  }
+
+  /* Details panel as side drawer on mobile */
+  .pending-orders-page .order-details-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100dvh;
+    width: min(420px, 92vw);
+    z-index: 1500;
+    animation: pendingDrawerIn 0.22s ease;
+  }
+
+  .pending-orders-page .details-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 1400;
+  }
+
+  .pending-orders-page .orders-list-panel {
+    transition: transform 0.22s ease;
+  }
+
+  .pending-orders-page .orders-layout.drawer-open .orders-list-panel {
+    transform: translateX(-18vw);
+  }
+
+  @keyframes pendingDrawerIn {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: translateX(0);
+    }
   }
 }
 

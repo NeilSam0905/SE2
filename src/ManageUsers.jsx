@@ -133,6 +133,18 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
     return { activeStaff, activeAdmins }
   }, [users])
 
+  const activeStaffUsers = useMemo(() => {
+    return users
+      .filter((u) => u.active && String(u.role || '').toLowerCase() === 'staff')
+      .map((u) => ({ id: u.id, name: u.name, email: u.email }))
+  }, [users])
+
+  const activeAdminUsers = useMemo(() => {
+    return users
+      .filter((u) => u.active && String(u.role || '').toLowerCase() === 'admin')
+      .map((u) => ({ id: u.id, name: u.name, email: u.email }))
+  }, [users])
+
   return (
     <div className="page-container manage-users-page">
       <Navbar
@@ -147,7 +159,7 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
         <h1 className="manage-users-title">Manager Users</h1>
 
         <div className="mu-stats">
-          <div className="mu-stat-card">
+          <div className="mu-stat-card" tabIndex={0} aria-label="Active staff (hover to view list)">
             <div className="mu-stat-text">
               <div className="mu-stat-label">Active Staff</div>
               <div className="mu-stat-value">{formatInteger(counts.activeStaff)}</div>
@@ -161,9 +173,29 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
                 <path d="M14.5 16.5H18.5" stroke="#5BC0BE" strokeWidth="1.8" strokeLinecap="round" />
               </svg>
             </div>
+
+            <div className="mu-stat-tooltip" role="tooltip" aria-hidden="true">
+              <div className="mu-stat-tooltip-title">Active Staff</div>
+              {activeStaffUsers.length ? (
+                <div className="mu-stat-tooltip-list">
+                  {activeStaffUsers.map((u) => (
+                    <div key={u.id} className="mu-stat-tooltip-item">
+                      <div className="mu-stat-tooltip-name" title={u.name}>
+                        {u.name}
+                      </div>
+                      <div className="mu-stat-tooltip-email" title={u.email}>
+                        {u.email}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mu-stat-tooltip-empty">No active staff.</div>
+              )}
+            </div>
           </div>
 
-          <div className="mu-stat-card">
+          <div className="mu-stat-card admin" tabIndex={0} aria-label="Active admin (hover to view list)">
             <div className="mu-stat-text">
               <div className="mu-stat-label">Active Admin</div>
               <div className="mu-stat-value">{formatInteger(counts.activeAdmins)}</div>
@@ -176,6 +208,26 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
                 <path d="M16.5 14.5V18.5" stroke="#5BC0BE" strokeWidth="1.8" strokeLinecap="round" />
                 <path d="M14.5 16.5H18.5" stroke="#5BC0BE" strokeWidth="1.8" strokeLinecap="round" />
               </svg>
+            </div>
+
+            <div className="mu-stat-tooltip" role="tooltip" aria-hidden="true">
+              <div className="mu-stat-tooltip-title">Active Admin</div>
+              {activeAdminUsers.length ? (
+                <div className="mu-stat-tooltip-list">
+                  {activeAdminUsers.map((u) => (
+                    <div key={u.id} className="mu-stat-tooltip-item">
+                      <div className="mu-stat-tooltip-name" title={u.name}>
+                        {u.name}
+                      </div>
+                      <div className="mu-stat-tooltip-email" title={u.email}>
+                        {u.email}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mu-stat-tooltip-empty">No active admin.</div>
+              )}
             </div>
           </div>
         </div>
@@ -265,8 +317,12 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
                         {initials || '?'}
                       </div>
                       <div className="mu-user-text">
-                        <div className="mu-user-name">{u.name}</div>
-                        <div className="mu-user-email">{u.email}</div>
+                        <div className="mu-user-name" title={u.name}>
+                          {u.name}
+                        </div>
+                        <div className="mu-user-email" title={u.email}>
+                          {u.email}
+                        </div>
                       </div>
                     </div>
 

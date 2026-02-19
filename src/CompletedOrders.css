@@ -131,6 +131,10 @@
   box-sizing: border-box;
 }
 
+.completed-orders-page .details-backdrop {
+  display: none;
+}
+
 .completed-orders-page .details-close {
   background: transparent;
   border: none;
@@ -491,6 +495,65 @@
   .completed-orders-page .completed-table-head > div:last-child,
   .completed-orders-page .completed-row > div:last-child {
     display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .completed-orders-page .page-content {
+    padding: 1rem;
+  }
+
+  .completed-orders-page .orders-layout {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .completed-orders-page .order-card {
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+    padding: 1.1rem 1rem;
+    min-height: 0;
+  }
+
+  .completed-orders-page .order-card-total {
+    text-align: left;
+    font-size: 1.25rem;
+  }
+
+  /* Details panel as side drawer on mobile */
+  .completed-orders-page .order-details-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100dvh;
+    width: min(420px, 92vw);
+    z-index: 1500;
+    animation: completedDrawerIn 0.22s ease;
+  }
+
+  .completed-orders-page .details-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 1400;
+  }
+
+  .completed-orders-page .orders-list-panel {
+    transition: transform 0.22s ease;
+  }
+
+  .completed-orders-page .orders-layout.drawer-open .orders-list-panel {
+    transform: translateX(-18vw);
+  }
+
+  @keyframes completedDrawerIn {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: translateX(0);
+    }
   }
 }
 

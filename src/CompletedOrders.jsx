@@ -114,7 +114,7 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [selectedOrderId, setSelectedOrderId] = useState(null)
   const [historyPage, setHistoryPage] = useState(1)
-  const historyPageSize = 10
+  const historyPageSize = 20
 
   const [exportFormat, setExportFormat] = useState('csv')
   const [exportPeriod, setExportPeriod] = useState('monthly')
@@ -151,6 +151,8 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
     if (!selectedOrderId) return null
     return ordersWithTotals.find((o) => o.id === selectedOrderId) || null
   }, [ordersWithTotals, selectedOrderId])
+
+  const drawerOpen = Boolean(detailsOpen && selectedOrder)
 
   const togglePaid = (orderId) => {
     setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, paid: !o.paid } : o)))
@@ -284,7 +286,7 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
   }
 
   return (
-    <div className="page-container completed-orders-page">
+    <div className={`page-container completed-orders-page ${drawerOpen ? 'drawer-open' : ''}`}>
       <Navbar
         onLogout={onLogout}
         activePage="completed"
@@ -294,7 +296,7 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
       />
 
       <div className="page-content completed-orders-content" ref={contentRef}>
-        <div className="orders-layout">
+        <div className={`orders-layout ${drawerOpen ? 'drawer-open' : ''}`}>
           <div className="orders-list-panel">
             <div className="orders-list-header">
               <div className="orders-list-col left">Complete</div>
@@ -327,7 +329,9 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
           </div>
 
           {detailsOpen && selectedOrder ? (
-            <div className="order-details-panel">
+            <>
+              <div className="details-backdrop" role="presentation" onClick={() => setDetailsOpen(false)} />
+              <div className="order-details-panel">
               <button className="details-close" type="button" onClick={() => setDetailsOpen(false)}>
                 {'<'} Close
               </button>
@@ -370,7 +374,8 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
                   {selectedOrder.paid ? 'MARK AS UNPAID' : 'MARK AS PAID'}
                 </button>
               </div>
-            </div>
+              </div>
+            </>
           ) : null}
         </div>
 
