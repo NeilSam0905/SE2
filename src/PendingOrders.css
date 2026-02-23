@@ -1,0 +1,372 @@
+.pending-orders-page {
+  color: #000;
+}
+
+.pending-orders-page .page-content {
+  padding: 1.5rem 2rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.pending-orders-page .orders-layout {
+  display: flex;
+  gap: 0;
+  background: #f5e6d3;
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.pending-orders-page .orders-list-panel {
+  flex: 1;
+  min-width: 520px;
+}
+
+.pending-orders-page .orders-list-header {
+  display: grid;
+  grid-template-columns: 1.4fr 0.6fr 0.8fr;
+  padding: 0.5rem 0.25rem 1rem;
+  font-weight: 800;
+  color: #000;
+}
+
+.pending-orders-page .orders-list-col {
+  font-size: 1.125rem;
+}
+
+.pending-orders-page .orders-list-col.left {
+  padding-left: 0.75rem;
+}
+
+.pending-orders-page .orders-list-col.right {
+  padding-right: 0.75rem;
+  text-align: right;
+}
+
+.pending-orders-page .order-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+.pending-orders-page .order-card {
+  width: 100%;
+  border: 3px solid #000;
+  border-radius: 22px;
+  background: #fff;
+  display: grid;
+  grid-template-columns: 1.4fr 0.6fr 0.8fr;
+  align-items: center;
+  padding: 1.75rem 1.25rem;
+  min-height: 140px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.pending-orders-page .order-card:hover {
+  background: #fbfbfb;
+}
+
+.pending-orders-page .order-card.active {
+  outline: 3px solid rgba(106, 27, 26, 0.2);
+}
+
+.pending-orders-page .order-link {
+  color: #d90000;
+  font-weight: 900;
+  font-size: 1.75rem;
+  text-decoration: underline;
+}
+
+.pending-orders-page .order-card-total {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #000;
+  text-align: center;
+}
+
+.pending-orders-page .order-card-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.4rem;
+}
+
+.pending-orders-page .order-card-status-text {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #000;
+}
+
+.pending-orders-page .order-card-status-text.preparing {
+  color: #c77700;
+}
+
+.pending-orders-page .order-card-status-text.done {
+  color: #1f9d1f;
+}
+
+.pending-orders-page .status-pill {
+  border: 2px solid #000;
+  border-radius: 999px;
+  padding: 0.35rem 1.25rem;
+  font-weight: 900;
+  background: #fff;
+}
+
+.pending-orders-page .status-pill.unpaid {
+  color: #1f2a44;
+}
+
+.pending-orders-page .order-details-panel {
+  width: 360px;
+  border: 3px solid #000;
+  border-radius: 0;
+  padding: 1rem 1rem 1.5rem;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.pending-orders-page .details-backdrop {
+  display: none;
+}
+
+.pending-orders-page .details-close {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-weight: 800;
+  color: #000;
+  margin-bottom: 0.75rem;
+  align-self: flex-start;
+  margin-left: -0.25rem;
+  padding-left: 0;
+}
+
+.pending-orders-page .details-title {
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: #000;
+}
+
+.pending-orders-page .details-order {
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: #d90000;
+  text-decoration: underline;
+  margin-top: 0.4rem;
+}
+
+.pending-orders-page .details-status {
+  font-weight: 700;
+  color: #000;
+  margin-top: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.pending-orders-page .details-items {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+.pending-orders-page .details-item {
+  display: grid;
+  grid-template-columns: 54px 1fr auto;
+  gap: 0.75rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+.pending-orders-page .item-image {
+  width: 54px;
+  height: 40px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  background: #e6e6e6;
+}
+
+.pending-orders-page .item-name {
+  font-weight: 900;
+  color: #000;
+}
+
+.pending-orders-page .item-qty {
+  font-weight: 700;
+  color: #000;
+  opacity: 0.85;
+  margin-top: 0.15rem;
+}
+
+.pending-orders-page .item-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+}
+
+.pending-orders-page .item-price {
+  font-weight: 700;
+  color: #000;
+}
+
+.pending-orders-page .serve-btn {
+  border: 2px solid #000;
+  border-radius: 999px;
+  padding: 0.2rem 0.75rem;
+  font-weight: 900;
+  background: #fff;
+  cursor: pointer;
+  color: #000;
+}
+
+.pending-orders-page .serve-btn.served {
+  color: #1f9d1f;
+}
+
+.pending-orders-page .serve-btn.unserved {
+  color: #c1121f;
+}
+
+.pending-orders-page .details-footer {
+  margin-top: 0.75rem;
+  border-top: 2px solid rgba(0, 0, 0, 0.25);
+  padding-top: 0.75rem;
+}
+
+.pending-orders-page .details-row {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 800;
+  color: #000;
+  margin-bottom: 0.4rem;
+}
+
+.pending-orders-page .details-type {
+  color: #d90000;
+  font-weight: 900;
+}
+
+.pending-orders-page .all-served-btn {
+  width: 100%;
+  margin-top: 0.75rem;
+  border: 2px solid #000;
+  border-radius: 999px;
+  padding: 0.75rem 1rem;
+  font-weight: 900;
+  cursor: pointer;
+  background: #fff;
+  color: #000;
+}
+
+/* Custom Scrollbar (match Dashboard) */
+.pending-orders-page .details-items::-webkit-scrollbar {
+  width: 12px;
+}
+
+.pending-orders-page .details-items::-webkit-scrollbar-track {
+  background: #d4c4a8;
+  border-radius: 10px;
+  margin: 5px;
+}
+
+.pending-orders-page .details-items::-webkit-scrollbar-thumb {
+  background: #8B4513;
+  border-radius: 10px;
+  border: 2px solid #d4c4a8;
+}
+
+.details-items::-webkit-scrollbar-thumb:hover {
+  background: #6d3410;
+}
+
+@media (max-width: 1100px) {
+  .pending-orders-page .orders-layout {
+    flex-direction: column;
+  }
+
+  .pending-orders-page .orders-list-panel {
+    min-width: 0;
+  }
+
+  .pending-orders-page .order-details-panel {
+    width: 100%;
+    border-radius: 0;
+  }
+
+  .pending-orders-page .order-cards {
+    padding-right: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .pending-orders-page .page-content {
+    padding: 1rem;
+  }
+
+  .pending-orders-page .orders-list-header {
+    padding: 0.5rem 0.25rem 0.75rem;
+  }
+
+  .pending-orders-page .orders-list-col {
+    font-size: 0.95rem;
+  }
+
+  .pending-orders-page .order-card {
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+    padding: 1.1rem 1rem;
+    min-height: 0;
+  }
+
+  .pending-orders-page .order-card-total {
+    text-align: left;
+    font-size: 1.25rem;
+  }
+
+  .pending-orders-page .order-card-status {
+    align-items: flex-start;
+  }
+
+  /* Details panel as side drawer on mobile */
+  .pending-orders-page .order-details-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100dvh;
+    width: min(420px, 92vw);
+    z-index: 1500;
+    animation: pendingDrawerIn 0.22s ease;
+  }
+
+  .pending-orders-page .details-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 1400;
+  }
+
+  .pending-orders-page .orders-list-panel {
+    transition: transform 0.22s ease;
+  }
+
+  .pending-orders-page .orders-layout.drawer-open .orders-list-panel {
+    transform: translateX(-18vw);
+  }
+
+  @keyframes pendingDrawerIn {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+}
+
