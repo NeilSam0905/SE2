@@ -32,7 +32,7 @@
 .completed-orders-page .orders-list-header {
   display: grid;
   grid-template-columns: 1.4fr 0.6fr 0.8fr;
-  padding: 0.5rem 0.25rem 1rem;
+  padding: 0.5rem calc(1.5rem + 1.25rem) 1rem 1.25rem;
   font-weight: 800;
   color: #000;
 }
@@ -42,11 +42,14 @@
 }
 
 .completed-orders-page .orders-list-col.left {
-  padding-left: 0.75rem;
+  text-align: left;
+}
+
+.completed-orders-page .orders-list-col {
+  text-align: center;
 }
 
 .completed-orders-page .orders-list-col.right {
-  padding-right: 0.75rem;
   text-align: right;
 }
 
@@ -55,13 +58,16 @@
   flex-direction: column;
   gap: 1.5rem;
   padding-right: 1.5rem;
-  flex: 1;
+  flex: 0 0 auto;
   min-height: 0;
   overflow-y: auto;
+  /* Shows roughly 3 cards, then scroll */
+  max-height: 480px;
 }
 
 .completed-orders-page .order-card {
   width: 100%;
+  box-sizing: border-box;
   border: 3px solid #000;
   border-radius: 22px;
   background: #fff;
@@ -106,6 +112,8 @@
   padding: 0.35rem 1.25rem;
   font-weight: 900;
   background: #fff;
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 .completed-orders-page .status-pill.paid {
@@ -295,6 +303,59 @@
   margin: 0 0 1rem;
 }
 
+.completed-table-headrow {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin: 0 0 1rem;
+}
+
+.completed-table-headrow .completed-table-title {
+  margin: 0;
+}
+
+.co-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 2px solid #000;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  background: #fff;
+}
+
+.co-search-input {
+  width: 260px;
+  max-width: 70vw;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #000;
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+
+.co-search-input::placeholder {
+  color: rgba(0, 0, 0, 0.6);
+  font-weight: 700;
+}
+
+.co-search-clear {
+  border: none;
+  background: transparent;
+  color: rgba(0, 0, 0, 0.65);
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 0.15rem 0.25rem;
+}
+
+.co-search-clear:hover {
+  color: #000;
+}
+
 .completed-table {
   border: 3px solid #000;
   border-radius: 20px;
@@ -406,7 +467,7 @@
   cursor: not-allowed;
 }
 
-/* Today cards scrollbar (match Dashboard) */
+/* Recent cards scrollbar (match Dashboard) */
 .completed-orders-page .order-cards::-webkit-scrollbar {
   width: 12px;
 }
@@ -509,10 +570,22 @@
   }
 
   .completed-orders-page .order-card {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
     gap: 0.6rem;
     padding: 1.1rem 1rem;
     min-height: 0;
+    overflow: hidden;
+  }
+
+  .completed-orders-page .order-card-status {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .completed-orders-page .order-card-status .status-pill {
+    align-self: flex-start;
   }
 
   .completed-orders-page .order-card-total {

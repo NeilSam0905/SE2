@@ -52,6 +52,7 @@
   display: flex;
   gap: 1rem;
   position: relative;
+  margin-left: auto;
 }
 
 .filter-wrapper {

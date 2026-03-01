@@ -1,120 +1,56 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Navbar from './elements/Navbar'
 import './CompletedOrders.css'
 import { formatMoney } from './utils/numberFormat'
+import { fetchOrdersWithItems, setOrderPaidStatus, subscribeToOrderRelatedChanges } from './data/orders'
 
 function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User' }) {
-  const todayKey = new Date().toDateString()
   const isAdmin = userRole === 'admin'
 
   const contentRef = useRef(null)
 
-  const [orders, setOrders] = useState(() => {
-    let persisted = []
+  const refreshTimerRef = useRef(null)
+  const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState('')
+
+  const [orders, setOrders] = useState([])
+
+  const loadOrders = async () => {
+    setLoading(true)
+    setLoadError('')
     try {
-      const raw = localStorage.getItem('completedOrders')
-      const parsed = raw ? JSON.parse(raw) : []
-      persisted = Array.isArray(parsed) ? parsed : []
-    } catch {
-      persisted = []
+      const list = await fetchOrdersWithItems({ completed: true })
+      setOrders(list)
+    } catch (e) {
+      console.error('Failed to load completed orders:', e)
+      setLoadError('Failed to load completed orders.')
+    } finally {
+      setLoading(false)
     }
+  }
 
-    const base = [
-      {
-        id: 263,
-        date: new Date().toISOString(),
-        orderType: 'Dine - In',
-        paid: true,
-        items: [
-          { id: 'a', name: 'Sinigang na Baka', qty: 1, price: 199.0 },
-          { id: 'b', name: 'Lumpiang Shanghai', qty: 1, price: 170.0 },
-          { id: 'c', name: 'Ensalada', qty: 2, price: 170.0 },
-          { id: 'd', name: 'Daing na Bangus', qty: 1, price: 189.0 },
-        ],
-      },
-      {
-        id: 268,
-        date: new Date().toISOString(),
-        orderType: 'Dine - In',
-        paid: true,
-        items: [
-          { id: 'a', name: 'Rice', qty: 2, price: 40.0 },
-          { id: 'b', name: 'Coke', qty: 1, price: 60.0 },
-          { id: 'c', name: 'Sisig', qty: 1, price: 130.0 },
-        ],
-      },
-      {
-        id: 241,
-        date: new Date(Date.now() - 86400000).toISOString(),
-        orderType: 'Take - Out',
-        paid: false,
-        items: [
-          { id: 'a', name: 'Bulalo', qty: 1, price: 250.0 },
-          { id: 'b', name: 'Rice', qty: 2, price: 40.0 },
-        ],
-      },
-      {
-        id: 198,
-        date: new Date(Date.now() - 4 * 86400000).toISOString(),
-        orderType: 'Dine - In',
-        paid: true,
-        items: [
-          { id: 'a', name: 'Kare-Kare', qty: 1, price: 220.0 },
-          { id: 'b', name: 'Rice', qty: 3, price: 40.0 },
-          { id: 'c', name: 'Iced Tea', qty: 2, price: 60.0 },
-        ],
-      },
-    ]
+  useEffect(() => {
+    loadOrders()
 
-    const menuPool = [
-      { name: 'Sinigang na Baka', price: 199.0 },
-      { name: 'Lumpiang Shanghai', price: 170.0 },
-      { name: 'Kare-Kare', price: 220.0 },
-      { name: 'Bulalo', price: 250.0 },
-      { name: 'Sisig', price: 185.0 },
-      { name: "Tokwa't Baboy", price: 155.0 },
-      { name: 'Rice', price: 40.0 },
-      { name: 'Coke', price: 60.0 },
-      { name: 'Iced Tea', price: 60.0 },
-    ]
-
-    const generated = Array.from({ length: 24 }, (_, idx) => {
-      const id = 300 + idx
-      const daysAgo = 2 + idx
-      const paid = idx % 3 !== 0
-      const orderType = idx % 2 === 0 ? 'Dine - In' : 'Take - Out'
-      const itemCount = 2 + (idx % 3)
-      const items = Array.from({ length: itemCount }, (__, itemIdx) => {
-        const pick = menuPool[(idx + itemIdx) % menuPool.length]
-        const qty = 1 + ((idx + itemIdx) % 2)
-        return { id: String.fromCharCode(97 + itemIdx), name: pick.name, qty, price: pick.price }
-      })
-
-      return {
-        id,
-        date: new Date(Date.now() - daysAgo * 86400000).toISOString(),
-        orderType,
-        paid,
-        items,
-      }
+    const unsubscribe = subscribeToOrderRelatedChanges(() => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+      refreshTimerRef.current = setTimeout(() => {
+        loadOrders()
+      }, 150)
     })
 
-    const baseAll = [...base, ...generated]
-    const deduped = [...persisted, ...baseAll].filter(Boolean).reduce((acc, o) => {
-      if (!o || !o.id) return acc
-      if (acc.seen.has(o.id)) return acc
-      acc.seen.add(o.id)
-      acc.items.push(o)
-      return acc
-    }, { seen: new Set(), items: [] }).items
-
-    return deduped
-  })
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+      unsubscribe()
+    }
+  }, [])
 
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [selectedOrderId, setSelectedOrderId] = useState(null)
   const [historyPage, setHistoryPage] = useState(1)
   const historyPageSize = 20
+
+  const [historySearch, setHistorySearch] = useState('')
 
   const [exportFormat, setExportFormat] = useState('csv')
   const [exportPeriod, setExportPeriod] = useState('monthly')
@@ -125,27 +61,60 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
   const [exportEnd, setExportEnd] = useState('')
 
   const ordersWithTotals = useMemo(() => {
+    const now = Date.now()
+    const cutoff = now - 24 * 60 * 60 * 1000
+
     return orders
       .map((o) => {
         const total = o.items.reduce((sum, it) => sum + Number(it.price || 0) * Number(it.qty || 0), 0)
-        const dateObj = new Date(o.date)
-        return { ...o, total, dateObj, isToday: dateObj.toDateString() === todayKey }
+        const completedAt = o.completeTimestamp || null
+        const dateObj = new Date(completedAt || o.date)
+        const within24h = completedAt && Number.isFinite(dateObj.getTime()) ? dateObj.getTime() >= cutoff : false
+        return { ...o, total, dateObj, within24h }
       })
       .sort((a, b) => b.dateObj.getTime() - a.dateObj.getTime())
-  }, [orders, todayKey])
+  }, [orders])
 
-  const todayOrders = useMemo(() => ordersWithTotals.filter((o) => o.isToday), [ordersWithTotals])
-  const historyOrders = useMemo(() => ordersWithTotals.filter((o) => !o.isToday), [ordersWithTotals])
+  const recentOrders = useMemo(() => ordersWithTotals.filter((o) => o.within24h), [ordersWithTotals])
+  const historyOrders = useMemo(() => ordersWithTotals, [ordersWithTotals])
+
+  const filteredHistoryOrders = useMemo(() => {
+    const q = String(historySearch || '').trim().toLowerCase()
+    if (!q) return historyOrders
+
+    return historyOrders.filter((o) => {
+      const idText = String(o?.id ?? '').toLowerCase()
+      const typeText = String(o?.orderType ?? '').toLowerCase()
+      const statusText = (o?.paid ? 'paid' : 'unpaid')
+
+      const itemsText = (o?.items || [])
+        .map((it) => it?.name)
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+
+      return (
+        idText.includes(q) ||
+        typeText.includes(q) ||
+        statusText.includes(q) ||
+        itemsText.includes(q)
+      )
+    })
+  }, [historyOrders, historySearch])
+
+  useEffect(() => {
+    setHistoryPage(1)
+  }, [historySearch])
 
   const historyPageCount = useMemo(() => {
-    return Math.max(1, Math.ceil(historyOrders.length / historyPageSize))
-  }, [historyOrders.length])
+    return Math.max(1, Math.ceil(filteredHistoryOrders.length / historyPageSize))
+  }, [filteredHistoryOrders.length])
 
   const pagedHistoryOrders = useMemo(() => {
     const safePage = Math.min(Math.max(1, historyPage), historyPageCount)
     const start = (safePage - 1) * historyPageSize
-    return historyOrders.slice(start, start + historyPageSize)
-  }, [historyOrders, historyPage, historyPageCount])
+    return filteredHistoryOrders.slice(start, start + historyPageSize)
+  }, [filteredHistoryOrders, historyPage, historyPageCount])
 
   const selectedOrder = useMemo(() => {
     if (!selectedOrderId) return null
@@ -154,8 +123,25 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
 
   const drawerOpen = Boolean(detailsOpen && selectedOrder)
 
-  const togglePaid = (orderId) => {
-    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, paid: !o.paid } : o)))
+  const togglePaid = async (orderId) => {
+    const target = orders.find((o) => o.id === orderId)
+    if (!target) return
+
+    const nextPaid = !target.paid
+    const subtotal = (target.items || []).reduce(
+      (sum, it) => sum + Number(it.price || 0) * Number(it.qty || 0),
+      0,
+    )
+
+    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, paid: nextPaid } : o)))
+
+    try {
+      await setOrderPaidStatus({ orderId, paid: nextPaid, subtotal })
+    } catch (e) {
+      console.error('Failed to update payment status:', e)
+      setLoadError('Failed to update payment status.')
+      loadOrders()
+    }
   }
 
   const exportRows = useMemo(() => {
@@ -299,13 +285,15 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
         <div className={`orders-layout ${drawerOpen ? 'drawer-open' : ''}`}>
           <div className="orders-list-panel">
             <div className="orders-list-header">
-              <div className="orders-list-col left">Complete</div>
+              <div className="orders-list-col left">Complete Orders</div>
               <div className="orders-list-col">Total</div>
               <div className="orders-list-col right">Status</div>
             </div>
 
             <div className="order-cards">
-              {todayOrders.map((o) => (
+              {loadError ? <div className="empty-note">{loadError}</div> : null}
+              {loading ? <div className="empty-note">Loading…</div> : null}
+              {recentOrders.map((o) => (
                 <button
                   key={o.id}
                   type="button"
@@ -324,7 +312,7 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
                   </div>
                 </button>
               ))}
-              {!todayOrders.length ? <div className="empty-note">No completed orders today.</div> : null}
+              {!recentOrders.length ? <div className="empty-note">No completed orders in the last 24 hours.</div> : null}
             </div>
           </div>
 
@@ -381,7 +369,28 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
 
         {isAdmin ? (
           <div className="completed-table-section">
-            <h2 className="completed-table-title">Completed Order History</h2>
+            <div className="completed-table-headrow">
+              <h2 className="completed-table-title">Completed Order History</h2>
+              <div className="co-search" role="search">
+                <input
+                  className="co-search-input"
+                  value={historySearch}
+                  onChange={(e) => setHistorySearch(e.target.value)}
+                  placeholder="Search order #, type, status, item…"
+                  aria-label="Search completed order history"
+                />
+                {historySearch ? (
+                  <button
+                    type="button"
+                    className="co-search-clear"
+                    onClick={() => setHistorySearch('')}
+                    aria-label="Clear search"
+                  >
+                    ✕
+                  </button>
+                ) : null}
+              </div>
+            </div>
             <div className="completed-table">
               <div className="completed-table-head">
                 <div>Order</div>

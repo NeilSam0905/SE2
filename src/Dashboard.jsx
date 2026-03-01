@@ -1,9 +1,114 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './Dashboard.css'
 import Navbar from './elements/Navbar'
 import { supabase } from './supabaseClient'
 import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { formatInteger } from './utils/numberFormat'
+import { subscribeToOrderRelatedChanges } from './data/orders'
+
+const normalizeText = (value) => String(value || '').toLowerCase().replace(/[^a-z]/g, '')
+const COMPLETED_STATUSES = new Set(['completed', 'complete', 'done', 'served', 'closed', 'finished'])
+const isCompletedStatusValue = (value) => COMPLETED_STATUSES.has(normalizeText(value))
+
+const startOfDay = (d) => {
+  const out = new Date(d)
+  out.setHours(0, 0, 0, 0)
+  return out
+}
+
+const endOfDay = (d) => {
+  const out = new Date(d)
+  out.setHours(23, 59, 59, 999)
+  return out
+}
+
+const addDays = (d, delta) => {
+  const out = new Date(d)
+  out.setDate(out.getDate() + delta)
+  return out
+}
+
+const toIso = (d) => d.toISOString()
+
+const parseStamp = (stamp) => {
+  if (!stamp) return null
+  const d = new Date(stamp)
+  if (Number.isNaN(d.getTime())) return null
+  return d
+}
+
+const formatMilitaryTime = (date) => {
+  return date.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+}
+
+const mapProductCategoryForPie = (type) => {
+  const t = normalizeText(type)
+  if (t === 'drinks' || t === 'drink') return 'Drinks'
+  if (t === 'others' || t === 'other') return 'Others'
+  // Meat/Vegetables (and anything else) counts as Food for the pie chart.
+  return 'Food'
+}
+
+const mapProductCategoryForMostSold = (type) => {
+  const t = normalizeText(type)
+  if (t === 'meat') return 'Meat'
+  if (t === 'vegetables' || t === 'vegetable') return 'Vegetables'
+  if (t === 'drinks' || t === 'drink') return 'Drinks'
+  if (t === 'others' || t === 'other') return 'Others'
+  return 'Others'
+}
+
+const buildOrderDescription = (items) => {
+  const list = Array.isArray(items) ? items : []
+  const parts = list
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((it) => {
+      const qty = Number(it?.quantity || 0)
+      const name = it?.products?.productName || 'Item'
+      return `${qty}x ${name}`
+    })
+  return parts.join(', ')
+}
+
+async function fetchOrdersInRange(start, end) {
+  const { data, error } = await supabase
+    .from('orders')
+    .select('orderID, orderType, status, orderTimestamp, completeTimestamp')
+    .gte('orderTimestamp', toIso(start))
+    .lte('orderTimestamp', toIso(end))
+
+  if (error) throw error
+  return Array.isArray(data) ? data : []
+}
+
+async function fetchPaymentsInRange(start, end) {
+  const { data, error } = await supabase
+    .from('payments')
+    .select('orderID, totalAmount, paymentTimestamp')
+    .gte('paymentTimestamp', toIso(start))
+    .lte('paymentTimestamp', toIso(end))
+
+  if (error) throw error
+  return Array.isArray(data) ? data : []
+}
+
+async function fetchOrderItemsForOrderIds(orderIds) {
+  const ids = Array.isArray(orderIds) ? orderIds.filter((x) => x != null) : []
+  if (!ids.length) return []
+
+  const { data, error } = await supabase
+    .from('order_items')
+    .select('orderItemID, orderID, quantity, price, products(productID, productName, type, price)')
+    .in('orderID', ids)
+
+  if (error) throw error
+  return Array.isArray(data) ? data : []
+}
 
 function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User' }) {
   const [timeFilter, setTimeFilter] = useState('Daily')
@@ -15,69 +120,202 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
 
   const [orders, setOrders] = useState([])
   const [payments, setPayments] = useState([])
+  const [orderItems, setOrderItems] = useState([])
+
+  const [prevOrders, setPrevOrders] = useState([])
+  const [prevPayments, setPrevPayments] = useState([])
+
+  const [trendPayments, setTrendPayments] = useState([])
+
+  const [realtimeCards, setRealtimeCards] = useState({ completed: null, pending: null })
+  const [monitoringCounts, setMonitoringCounts] = useState({ pending: 0, completed: 0 })
+
+  const [trendFilter, setTrendFilter] = useState('Daily')
+  const [showTrendFilter, setShowTrendFilter] = useState(false)
+
+  const refreshTimerRef = useRef(null)
+  const getPrimaryRange = useMemo(() => {
+    const anchor = selectedDate ? new Date(selectedDate) : new Date()
+    if (timeFilter === 'Daily') {
+      const start = startOfDay(anchor)
+      const end = endOfDay(anchor)
+      return { start, end }
+    }
+
+    if (timeFilter === 'Weekly') {
+      const end = endOfDay(anchor)
+      const start = startOfDay(addDays(anchor, -6))
+      return { start, end }
+    }
+
+    if (timeFilter === 'Monthly') {
+      const start = new Date(anchor.getFullYear(), anchor.getMonth(), 1)
+      start.setHours(0, 0, 0, 0)
+      const end = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0, 23, 59, 59, 999)
+      return { start, end }
+    }
+
+    if (timeFilter === 'Yearly') {
+      const start = new Date(anchor.getFullYear(), 0, 1)
+      start.setHours(0, 0, 0, 0)
+      const end = new Date(anchor.getFullYear(), 11, 31, 23, 59, 59, 999)
+      return { start, end }
+    }
+
+    const start = startOfDay(anchor)
+    const end = endOfDay(anchor)
+    return { start, end }
+  }, [selectedDate, timeFilter])
+
+  const getComparisonRange = useMemo(() => {
+    const { start, end } = getPrimaryRange
+    if (timeFilter === 'Daily') return { start: addDays(start, -1), end: addDays(end, -1) }
+    if (timeFilter === 'Weekly') return { start: addDays(start, -7), end: addDays(end, -7) }
+    if (timeFilter === 'Monthly') {
+      const anchor = new Date(start)
+      const prevStart = new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1)
+      prevStart.setHours(0, 0, 0, 0)
+      const prevEnd = new Date(anchor.getFullYear(), anchor.getMonth(), 0, 23, 59, 59, 999)
+      return { start: prevStart, end: prevEnd }
+    }
+    if (timeFilter === 'Yearly') {
+      const anchor = new Date(start)
+      const prevStart = new Date(anchor.getFullYear() - 1, 0, 1)
+      prevStart.setHours(0, 0, 0, 0)
+      const prevEnd = new Date(anchor.getFullYear() - 1, 11, 31, 23, 59, 59, 999)
+      return { start: prevStart, end: prevEnd }
+    }
+    return { start, end }
+  }, [getPrimaryRange, timeFilter])
+
+  const pctChange = (current, previous) => {
+    const c = Number(current || 0)
+    const p = Number(previous || 0)
+    if (!p && !c) return '0.00%'
+    if (!p && c) return '+100.00%'
+    const pct = ((c - p) / p) * 100
+    const sign = pct >= 0 ? '+' : ''
+    return `${sign}${pct.toFixed(2)}%`
+  }
+
+  const fetchRealtimeCards = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('orderID, status, orderTimestamp, order_items(quantity, products(productName))')
+      .order('orderTimestamp', { ascending: false })
+      .limit(25)
+
+    if (error) throw error
+
+    const rows = Array.isArray(data) ? data : []
+    const completed = rows.find((r) => isCompletedStatusValue(r?.status)) || null
+    const pending = rows.find((r) => !isCompletedStatusValue(r?.status)) || null
+
+    const toCard = (row, label) => {
+      if (!row) return null
+      const stamp = parseStamp(row?.orderTimestamp)
+      return {
+        label,
+        orderID: row.orderID,
+        description: buildOrderDescription(row.order_items),
+        time: stamp ? formatMilitaryTime(stamp) : '--:--',
+      }
+    }
+
+    setRealtimeCards({
+      completed: toCard(completed, 'Completed'),
+      pending: toCard(pending, 'Preparing'),
+    })
+  }, [])
+
+  const fetchMonitoringCounts = useCallback(async () => {
+    const completedQuery = await supabase
+      .from('orders')
+      .select('orderID', { count: 'exact', head: true })
+      .eq('status', 'Completed')
+
+    const pendingQuery = await supabase
+      .from('orders')
+      .select('orderID', { count: 'exact', head: true })
+      .neq('status', 'Completed')
+
+    if (completedQuery.error) throw completedQuery.error
+    if (pendingQuery.error) throw pendingQuery.error
+
+    setMonitoringCounts({
+      pending: pendingQuery.count || 0,
+      completed: completedQuery.count || 0,
+    })
+  }, [])
+
+  const getTrendRange = useMemo(() => {
+    const anchor = selectedDate ? new Date(selectedDate) : new Date()
+    const end = endOfDay(anchor)
+    if (trendFilter === 'Daily') return { start: startOfDay(addDays(anchor, -6)), end }
+    if (trendFilter === 'Weekly') return { start: startOfDay(addDays(anchor, -27)), end }
+    if (trendFilter === 'Monthly') {
+      const start = new Date(anchor.getFullYear(), anchor.getMonth() - 11, 1)
+      start.setHours(0, 0, 0, 0)
+      return { start, end }
+    }
+    if (trendFilter === 'Yearly') {
+      const start = new Date(anchor.getFullYear() - 4, 0, 1)
+      start.setHours(0, 0, 0, 0)
+      return { start, end }
+    }
+    return { start: startOfDay(addDays(anchor, -6)), end }
+  }, [selectedDate, trendFilter])
 
   useEffect(() => {
-    const fetchData = async () => {
+    const refresh = async () => {
       try {
-        const { data: ordersData, error: ordersError } = await supabase.from('orders').select('*')
-        if (ordersError) {
-          console.error('Supabase orders error:', ordersError)
-        } else {
-          setOrders(ordersData || [])
-        }
+        const { start, end } = getPrimaryRange
+        const { start: prevStart, end: prevEnd } = getComparisonRange
 
-        const { data: paymentsData, error: paymentsError } = await supabase.from('payments').select('*')
-        if (paymentsError) {
-          console.error('Supabase payments error:', paymentsError)
-        } else {
-          setPayments(paymentsData || [])
-        }
+        const [ordersNow, paymentsNow, ordersThen, paymentsThen] = await Promise.all([
+          fetchOrdersInRange(start, end),
+          fetchPaymentsInRange(start, end),
+          fetchOrdersInRange(prevStart, prevEnd),
+          fetchPaymentsInRange(prevStart, prevEnd),
+        ])
+
+        setOrders(ordersNow)
+        setPayments(paymentsNow)
+        setPrevOrders(ordersThen)
+        setPrevPayments(paymentsThen)
+
+        const ids = ordersNow.map((o) => o.orderID)
+        const items = await fetchOrderItemsForOrderIds(ids)
+        setOrderItems(items)
+
+        const trend = await fetchPaymentsInRange(getTrendRange.start, getTrendRange.end)
+        setTrendPayments(trend)
+
+        await Promise.all([fetchRealtimeCards(), fetchMonitoringCounts()])
       } catch (error) {
         console.error('Error fetching dashboard data:', error)
       }
     }
 
-    fetchData()
-  }, [])
+    refresh()
+
+    const unsubscribe = subscribeToOrderRelatedChanges(() => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+      refreshTimerRef.current = setTimeout(() => {
+        refresh()
+      }, 200)
+    })
+
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+      unsubscribe()
+    }
+  }, [fetchMonitoringCounts, fetchRealtimeCards, getComparisonRange, getPrimaryRange, getTrendRange])
 
   const normalizeOrderType = (value) => String(value || '').toLowerCase().replace(/[^a-z]/g, '')
 
-  const getTimeRange = useMemo(() => {
-    const now = new Date()
-    const start = new Date(now)
-    if (timeFilter === 'Daily') {
-      start.setHours(0, 0, 0, 0)
-    } else if (timeFilter === 'Weekly') {
-      start.setDate(now.getDate() - 7)
-    } else if (timeFilter === 'Monthly') {
-      start.setDate(now.getDate() - 30)
-    } else if (timeFilter === 'Yearly') {
-      start.setFullYear(now.getFullYear() - 1)
-    } else {
-      start.setHours(0, 0, 0, 0)
-    }
-    return { start, end: now }
-  }, [timeFilter])
-
-  const filteredOrders = useMemo(() => {
-    const { start, end } = getTimeRange
-    return (orders || []).filter((order) => {
-      const stamp = order?.orderTimestamp || order?.createdAt || order?.created_at
-      const orderDate = stamp ? new Date(stamp) : null
-      if (!orderDate || Number.isNaN(orderDate.getTime())) return false
-      return orderDate >= start && orderDate <= end
-    })
-  }, [orders, getTimeRange])
-
-  const filteredPayments = useMemo(() => {
-    const { start, end } = getTimeRange
-    return (payments || []).filter((payment) => {
-      const stamp = payment?.paymentTimestamp || payment?.createdAt || payment?.created_at
-      const paymentDate = stamp ? new Date(stamp) : null
-      if (!paymentDate || Number.isNaN(paymentDate.getTime())) return false
-      return paymentDate >= start && paymentDate <= end
-    })
-  }, [payments, getTimeRange])
+  const filteredOrders = useMemo(() => orders || [], [orders])
+  const filteredPayments = useMemo(() => payments || [], [payments])
 
   const computedStats = useMemo(() => {
     const ordersCount = filteredOrders.length
@@ -101,46 +339,26 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
     return { ordersCount, totalSales, dineInPct, takeOutPct, dineInCount, takeOutCount }
   }, [filteredOrders, filteredPayments])
 
-  const [trendFilter, setTrendFilter] = useState('Daily')
-  const [showTrendFilter, setShowTrendFilter] = useState(false)
+  const computedPrevStats = useMemo(() => {
+    const prevOrdersCount = (prevOrders || []).length
+    const prevTotalSales = (prevPayments || []).reduce((sum, p) => sum + Number(p?.totalAmount || 0), 0)
+    return { prevOrdersCount, prevTotalSales }
+  }, [prevOrders, prevPayments])
 
-  const [prepItemFilter, setPrepItemFilter] = useState('ALL')
-  const [showPrepFilter, setShowPrepFilter] = useState(false)
+  const computeAvgPrepMinutes = (ordersList) => {
+    const mins = []
+    ;(ordersList || []).forEach((o) => {
+      if (!isCompletedStatusValue(o?.status)) return
+      const orderTs = parseStamp(o?.orderTimestamp)
+      const completeTs = parseStamp(o?.completeTimestamp)
+      if (!orderTs || !completeTs) return
+      const diffMin = Math.max(0, (completeTs.getTime() - orderTs.getTime()) / 60000)
+      mins.push(diffMin)
+    })
 
-  const prepFilterItems = useMemo(() => {
-    return [
-      { key: 'ALL', label: 'All' },
-      { key: 'Sinigang na Baka', label: 'Sinigang na Baka' },
-      { key: 'Lumpiang Shanghai', label: 'Lumpiang Shanghai' },
-      { key: 'Ensalada', label: 'Ensalada' },
-      { key: 'Daing na Bangus', label: 'Daing na Bangus' },
-      { key: 'Kare-Kare', label: 'Kare-Kare' },
-      { key: 'Bulalo', label: 'Bulalo' },
-      { key: 'Sisig', label: 'Sisig' },
-      { key: 'Coke', label: 'Coke' },
-      { key: 'Iced Tea', label: 'Iced Tea' },
-      { key: 'Calamansi Juice', label: 'Calamansi Juice' },
-      { key: 'Bottled Water', label: 'Bottled Water' },
-      { key: 'Hot Coffee', label: 'Hot Coffee' },
-    ]
-  }, [])
-
-  const prepTimeByItem = useMemo(() => {
-    return {
-      'Sinigang na Baka': '6 mins',
-      'Lumpiang Shanghai': '4 mins',
-      Ensalada: '3 mins',
-      'Daing na Bangus': '7 mins',
-      'Kare-Kare': '8 mins',
-      Bulalo: '9 mins',
-      Sisig: '5 mins',
-      Coke: '1 min',
-      'Iced Tea': '2 mins',
-      'Calamansi Juice': '2 mins',
-      'Bottled Water': '1 min',
-      'Hot Coffee': '3 mins',
-    }
-  }, [])
+    if (!mins.length) return 0
+    return mins.reduce((a, b) => a + b, 0) / mins.length
+  }
 
   const closeAllCalendars = () => {
     setShowDailyCalendar(false)
@@ -216,56 +434,21 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
       takeOutPct: computedStats.takeOutPct || 0,
     }
 
-    switch (timeFilter) {
-      case 'Daily':
-        return {
-          ...base,
-          prepTime: '5 mins',
-          revenueChange: '+12.15%',
-          ordersChange: '+12.15%',
-          prepChange: '-4.15%',
-        }
-      case 'Weekly':
-        return {
-          ...base,
-          prepTime: '6 mins',
-          revenueChange: '+6.8%',
-          ordersChange: '+5.1%',
-          prepChange: '-1.2%',
-        }
-      case 'Monthly':
-        return {
-          ...base,
-          prepTime: '6 mins',
-          revenueChange: '+18.5%',
-          ordersChange: '+15.2%',
-          prepChange: '-2.8%',
-        }
-      case 'Yearly':
-        return {
-          ...base,
-          prepTime: '5.5 mins',
-          revenueChange: '+22.7%',
-          ordersChange: '+19.8%',
-          prepChange: '-5.2%',
-        }
-      default:
-        return {
-          ...base,
-          prepTime: '5 mins',
-          revenueChange: '+12.15%',
-          ordersChange: '+12.15%',
-          prepChange: '-4.15%',
-        }
+    const avgPrep = computeAvgPrepMinutes(filteredOrders)
+    const prevAvgPrep = computeAvgPrepMinutes(prevOrders)
+
+    return {
+      ...base,
+      prepTime: `${Math.round(avgPrep || 0)} mins`,
+      revenueChange: pctChange(base.revenue, computedPrevStats.prevTotalSales),
+      ordersChange: pctChange(base.orders, computedPrevStats.prevOrdersCount),
+      prepChange: pctChange(avgPrep, prevAvgPrep),
     }
   }
 
   const statsData = getStatsData()
 
-  const displayedPrepTime = useMemo(() => {
-    if (prepItemFilter === 'ALL') return statsData.prepTime
-    return prepTimeByItem[prepItemFilter] || statsData.prepTime
-  }, [prepItemFilter, prepTimeByItem, statsData.prepTime])
+  const displayedPrepTime = useMemo(() => statsData.prepTime, [statsData.prepTime])
 
   const comparisonLabel = useMemo(() => {
     switch (timeFilter) {
@@ -285,84 +468,73 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
   const salesAmount = useMemo(() => `₱ ${formatInteger(statsData.revenue)}`, [statsData.revenue])
 
   const salesData = useMemo(() => {
-    switch (timeFilter) {
-      case 'Daily':
-        return [
-          { name: 'Food', value: 62, color: '#5BC0BE' },
-          { name: 'Drinks', value: 23, color: '#E07A5F' },
-          { name: 'Others', value: 15, color: '#F2CC8F' },
-        ]
-      case 'Weekly':
-        return [
-          { name: 'Food', value: 60, color: '#5BC0BE' },
-          { name: 'Drinks', value: 25, color: '#E07A5F' },
-          { name: 'Others', value: 15, color: '#F2CC8F' },
-        ]
-      case 'Monthly':
-        return [
-          { name: 'Food', value: 58, color: '#5BC0BE' },
-          { name: 'Drinks', value: 27, color: '#E07A5F' },
-          { name: 'Others', value: 15, color: '#F2CC8F' },
-        ]
-      case 'Yearly':
-        return [
-          { name: 'Food', value: 61, color: '#5BC0BE' },
-          { name: 'Drinks', value: 24, color: '#E07A5F' },
-          { name: 'Others', value: 15, color: '#F2CC8F' },
-        ]
-      default:
-        return [
-          { name: 'Food', value: 60, color: '#5BC0BE' },
-          { name: 'Drinks', value: 25, color: '#E07A5F' },
-          { name: 'Others', value: 15, color: '#F2CC8F' },
-        ]
+    const paidOrders = new Set((filteredPayments || []).map((p) => p?.orderID).filter((x) => x != null))
+    const totals = { Food: 0, Drinks: 0, Others: 0 }
+
+    ;(orderItems || []).forEach((oi) => {
+      if (!paidOrders.has(oi?.orderID)) return
+      const qty = Number(oi?.quantity || 0)
+      const unit = Number(oi?.price ?? oi?.products?.price ?? 0)
+      const revenue = qty * unit
+      const bucket = mapProductCategoryForPie(oi?.products?.type)
+      totals[bucket] = (totals[bucket] || 0) + revenue
+    })
+
+    const total = Object.values(totals).reduce((a, b) => a + b, 0)
+    const toPct = (v) => {
+      if (!total) return 0
+      return Math.round((v / total) * 100)
     }
-  }, [timeFilter])
+
+    const raw = [
+      { name: 'Food', value: toPct(totals.Food), color: '#5BC0BE' },
+      { name: 'Drinks', value: toPct(totals.Drinks), color: '#E07A5F' },
+      { name: 'Others', value: toPct(totals.Others), color: '#F2CC8F' },
+    ]
+
+    // Fix rounding to exactly 100 when possible.
+    const sum = raw.reduce((s, r) => s + r.value, 0)
+    if (sum !== 100 && total) {
+      const idx = raw.reduce((maxIdx, r, i) => (r.value > raw[maxIdx].value ? i : maxIdx), 0)
+      raw[idx].value = Math.max(0, raw[idx].value + (100 - sum))
+    }
+
+    return raw
+  }, [filteredPayments, orderItems])
 
   const mostSoldProducts = useMemo(() => {
-    // Categorized list for display
-    switch (timeFilter) {
-      case 'Daily':
-        return [
-          { category: 'Meat', name: 'Sinigang na Baka', orders: 24, revenue: 2480 },
-          { category: 'Meat', name: 'Crispy Pork Sisig', orders: 15, revenue: 980 },
-          { category: 'Vegetables', name: 'Labong Saluyot', orders: 18, revenue: 1400 },
-          { category: 'Drinks', name: 'Coke', orders: 20, revenue: 2400 },
-          { category: 'Others', name: 'Rice', orders: 32, revenue: 1600 },
-        ]
-      case 'Weekly':
-        return [
-          { category: 'Meat', name: 'Daing na Bangus', orders: 120, revenue: 14400 },
-          { category: 'Meat', name: 'Dinuguan', orders: 98, revenue: 9800 },
-          { category: 'Vegetables', name: 'Pinakbet', orders: 76, revenue: 7600 },
-          { category: 'Drinks', name: 'Iced Tea', orders: 110, revenue: 8800 },
-          { category: 'Others', name: 'Rice', orders: 260, revenue: 13000 },
-        ]
-      case 'Monthly':
-        return [
-          { category: 'Meat', name: 'Sinigang na Baka', orders: 620, revenue: 62000 },
-          { category: 'Meat', name: 'Crispy Pork Sisig', orders: 510, revenue: 38250 },
-          { category: 'Vegetables', name: 'Labong Saluyot', orders: 430, revenue: 32250 },
-          { category: 'Drinks', name: 'Coke', orders: 740, revenue: 59200 },
-          { category: 'Others', name: 'Rice', orders: 1800, revenue: 90000 },
-        ]
-      case 'Yearly':
-        return [
-          { category: 'Meat', name: 'Sinigang na Baka', orders: 7200, revenue: 720000 },
-          { category: 'Meat', name: 'Crispy Pork Sisig', orders: 6100, revenue: 457500 },
-          { category: 'Vegetables', name: 'Labong Saluyot', orders: 4800, revenue: 360000 },
-          { category: 'Drinks', name: 'Coke', orders: 8200, revenue: 656000 },
-          { category: 'Others', name: 'Rice', orders: 25000, revenue: 1250000 },
-        ]
-      default:
-        return [
-          { category: 'Meat', name: 'Sinigang na Baka', orders: 24, revenue: 2480 },
-          { category: 'Vegetables', name: 'Labong Saluyot', orders: 18, revenue: 1400 },
-          { category: 'Drinks', name: 'Coke', orders: 20, revenue: 2400 },
-          { category: 'Others', name: 'Rice', orders: 32, revenue: 1600 },
-        ]
-    }
-  }, [timeFilter])
+    const paidOrders = new Set((filteredPayments || []).map((p) => p?.orderID).filter((x) => x != null))
+    const byProduct = new Map()
+    const distinctOrdersByProduct = new Map()
+
+    ;(orderItems || []).forEach((oi) => {
+      if (!paidOrders.has(oi?.orderID)) return
+      const name = oi?.products?.productName || 'Item'
+      const type = oi?.products?.type
+      const category = mapProductCategoryForMostSold(type)
+      const qty = Number(oi?.quantity || 0)
+      const unit = Number(oi?.price ?? oi?.products?.price ?? 0)
+      const revenue = qty * unit
+
+      if (!byProduct.has(name)) byProduct.set(name, { category, name, orders: 0, revenue: 0 })
+      const agg = byProduct.get(name)
+      agg.orders += qty
+      agg.revenue += revenue
+      byProduct.set(name, agg)
+
+      if (!distinctOrdersByProduct.has(name)) distinctOrdersByProduct.set(name, new Set())
+      distinctOrdersByProduct.get(name).add(oi.orderID)
+    })
+
+    // Display: top 5 by revenue.
+    const list = Array.from(byProduct.values())
+      .map((p) => ({ ...p, distinctOrders: distinctOrdersByProduct.get(p.name)?.size || 0 }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 5)
+      .map((p) => ({ category: p.category, name: p.name, orders: p.distinctOrders || p.orders, revenue: Math.round(p.revenue) }))
+
+    return list
+  }, [filteredPayments, orderItems])
 
   const categorizedMostSold = useMemo(() => {
     const order = ['Meat', 'Vegetables', 'Drinks', 'Others']
@@ -393,10 +565,13 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
   }, [trendFilter])
 
   const trendData = useMemo(() => {
-    const anchor = new Date()
-    anchor.setHours(12, 0, 0, 0)
+    const list = Array.isArray(trendPayments) ? trendPayments : []
 
     const weekdayAbbr = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    const monthAbbr = (date) => months[date.getMonth()].slice(0, 3)
+
+    const anchor = selectedDate ? new Date(selectedDate) : new Date()
+    anchor.setHours(12, 0, 0, 0)
 
     const startOfWeekMonday = (date) => {
       const d = new Date(date)
@@ -409,74 +584,80 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
 
     const weekOfMonth = (date) => Math.floor((date.getDate() - 1) / 7) + 1
 
-    const monthAbbr = (date) => months[date.getMonth()].slice(0, 3)
-
     if (trendFilter === 'Daily') {
-      // Past 7 days
       const days = Array.from({ length: 7 }, (_, i) => {
         const d = new Date(anchor)
         d.setDate(anchor.getDate() - (6 - i))
-        const label = weekdayAbbr[d.getDay()]
-        const base = 15000
-        const wave = Math.round(2500 * Math.sin((i / 6) * Math.PI))
-        const sales = base + i * 900 + wave
-        return { time: label, sales }
+        const key = d.toDateString()
+        const sum = list
+          .filter((p) => {
+            const ts = parseStamp(p?.paymentTimestamp)
+            return ts && ts.toDateString() === key
+          })
+          .reduce((acc, p) => acc + Number(p?.totalAmount || 0), 0)
+        return { time: weekdayAbbr[d.getDay()], sales: Math.round(sum) }
       })
       return days
     }
 
     if (trendFilter === 'Weekly') {
-      // Past 4 weeks, month + week number buckets (e.g., "Feb W1")
       const endWeekStart = startOfWeekMonday(anchor)
       return Array.from({ length: 4 }, (_, i) => {
         const weekStart = new Date(endWeekStart)
         weekStart.setDate(endWeekStart.getDate() - (3 - i) * 7)
+        const weekEnd = new Date(weekStart)
+        weekEnd.setDate(weekStart.getDate() + 6)
+        weekEnd.setHours(23, 59, 59, 999)
         const wom = weekOfMonth(weekStart)
         const label = `${monthAbbr(weekStart)} W${wom}`
-        const base = 75000
-        const sales = base + i * 12000 + Math.round(6000 * Math.cos(i))
-        return { time: label, sales }
+        const sum = list
+          .filter((p) => {
+            const ts = parseStamp(p?.paymentTimestamp)
+            return ts && ts >= weekStart && ts <= weekEnd
+          })
+          .reduce((acc, p) => acc + Number(p?.totalAmount || 0), 0)
+        return { time: label, sales: Math.round(sum) }
       })
     }
 
     if (trendFilter === 'Monthly') {
-      // Last 12 months (rolling)
       return Array.from({ length: 12 }, (_, i) => {
         const d = new Date(anchor)
         d.setMonth(anchor.getMonth() - (11 - i))
-        const label = months[d.getMonth()].slice(0, 3)
-        const base = 320000
-        const seasonal = Math.round(45000 * Math.sin((i / 11) * Math.PI * 2))
-        const sales = base + i * 8000 + seasonal
-        return { time: label, sales }
+        const y = d.getFullYear()
+        const m = d.getMonth()
+        const start = new Date(y, m, 1)
+        start.setHours(0, 0, 0, 0)
+        const end = new Date(y, m + 1, 0, 23, 59, 59, 999)
+        const sum = list
+          .filter((p) => {
+            const ts = parseStamp(p?.paymentTimestamp)
+            return ts && ts >= start && ts <= end
+          })
+          .reduce((acc, p) => acc + Number(p?.totalAmount || 0), 0)
+        return { time: months[m].slice(0, 3), sales: Math.round(sum) }
       })
     }
 
     if (trendFilter === 'Yearly') {
-      // Last 5 years including current year
       const y = anchor.getFullYear()
       const yearsRange = Array.from({ length: 5 }, (_, i) => y - (4 - i))
-      return yearsRange.map((year, i) => {
-        const base = 14500000
-        const sales = base + i * 1250000 + Math.round(400000 * Math.sin(i))
-        return { time: String(year), sales }
+      return yearsRange.map((year) => {
+        const start = new Date(year, 0, 1)
+        start.setHours(0, 0, 0, 0)
+        const end = new Date(year, 11, 31, 23, 59, 59, 999)
+        const sum = list
+          .filter((p) => {
+            const ts = parseStamp(p?.paymentTimestamp)
+            return ts && ts >= start && ts <= end
+          })
+          .reduce((acc, p) => acc + Number(p?.totalAmount || 0), 0)
+        return { time: String(year), sales: Math.round(sum) }
       })
     }
 
     return []
-  }, [months, trendFilter])
-
-  const formatMilitaryTime = (date) => {
-    return date.toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    })
-  }
-
-  const now = Date.now()
-  const order4Time = formatMilitaryTime(new Date(now - 2 * 60 * 1000))
-  const order2Time = formatMilitaryTime(new Date(now - 5 * 60 * 1000))
+  }, [months, selectedDate, trendFilter, trendPayments])
 
   return (
     <div className="dashboard-container">
@@ -504,7 +685,7 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
                   type="button"
                   className={`filter-drop-btn ${timeFilter === 'Daily' ? 'active' : ''}`}
                   onClick={() => toggleTimeFilterCalendar('Daily')}
-                  aria-label="Open daily calendar"
+                  aria-label="Open daily dropdown"
                 >
                   ▼
                 </button>
@@ -512,17 +693,29 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
               {showDailyCalendar && (
                 <div className="calendar-dropdown">
                   <div className="calendar-header">
-                    <button onClick={() => {
-                      const newDate = new Date(selectedDate)
-                      newDate.setMonth(selectedDate.getMonth() - 1)
-                      setSelectedDate(newDate)
-                    }}>‹</button>
-                    <span>{months[selectedDate.getMonth()]} {selectedDate.getFullYear()}</span>
-                    <button onClick={() => {
-                      const newDate = new Date(selectedDate)
-                      newDate.setMonth(selectedDate.getMonth() + 1)
-                      setSelectedDate(newDate)
-                    }}>›</button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newDate = new Date(selectedDate)
+                        newDate.setMonth(selectedDate.getMonth() - 1)
+                        setSelectedDate(newDate)
+                      }}
+                    >
+                      ‹
+                    </button>
+                    <span>
+                      {months[selectedDate.getMonth()]} {selectedDate.getFullYear()}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newDate = new Date(selectedDate)
+                        newDate.setMonth(selectedDate.getMonth() + 1)
+                        setSelectedDate(newDate)
+                      }}
+                    >
+                      ›
+                    </button>
                   </div>
                   <div className="calendar-grid">
                     <div className="calendar-day-header">Sun</div>
@@ -539,12 +732,15 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
                         days.push(<div key={`empty-${i}`} className="calendar-day empty"></div>)
                       }
                       for (let day = 1; day <= daysInMonth; day++) {
-                        const isToday = day === new Date().getDate() && 
-                                      selectedDate.getMonth() === new Date().getMonth() &&
-                                      selectedDate.getFullYear() === new Date().getFullYear()
+                        const now = new Date()
+                        const isToday =
+                          day === now.getDate() &&
+                          selectedDate.getMonth() === now.getMonth() &&
+                          selectedDate.getFullYear() === now.getFullYear()
+
                         days.push(
-                          <div 
-                            key={day} 
+                          <div
+                            key={day}
                             className={`calendar-day ${isToday ? 'today' : ''}`}
                             onClick={() => {
                               const newDate = new Date(selectedDate)
@@ -563,6 +759,7 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
                 </div>
               )}
             </div>
+
             <div className="filter-wrapper">
               <div className="filter-row">
                 <button
@@ -585,12 +782,11 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
                   <div className="calendar-header">
                     <span>Week</span>
                   </div>
-                  <div className="calendar-week-note">
-                    Weekly view uses the current week.
-                  </div>
+                  <div className="calendar-week-note">Weekly view uses the current week.</div>
                 </div>
               )}
             </div>
+
             <div className="filter-wrapper">
               <div className="filter-row">
                 <button
@@ -611,21 +807,31 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
               {showMonthlyCalendar && (
                 <div className="calendar-dropdown monthly">
                   <div className="calendar-header">
-                    <button onClick={() => {
-                      const newDate = new Date(selectedDate)
-                      newDate.setFullYear(selectedDate.getFullYear() - 1)
-                      setSelectedDate(newDate)
-                    }}>‹</button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newDate = new Date(selectedDate)
+                        newDate.setFullYear(selectedDate.getFullYear() - 1)
+                        setSelectedDate(newDate)
+                      }}
+                    >
+                      ‹
+                    </button>
                     <span>{selectedDate.getFullYear()}</span>
-                    <button onClick={() => {
-                      const newDate = new Date(selectedDate)
-                      newDate.setFullYear(selectedDate.getFullYear() + 1)
-                      setSelectedDate(newDate)
-                    }}>›</button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newDate = new Date(selectedDate)
+                        newDate.setFullYear(selectedDate.getFullYear() + 1)
+                        setSelectedDate(newDate)
+                      }}
+                    >
+                      ›
+                    </button>
                   </div>
                   <div className="months-grid">
                     {months.map((month, index) => (
-                      <div 
+                      <div
                         key={month}
                         className={`month-item ${selectedDate.getMonth() === index ? 'selected' : ''}`}
                         onClick={() => {
@@ -642,6 +848,7 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
                 </div>
               )}
             </div>
+
             <div className="filter-wrapper">
               <div className="filter-row">
                 <button
@@ -663,7 +870,7 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
                 <div className="calendar-dropdown yearly">
                   <div className="years-grid">
                     {years.map((year) => (
-                      <div 
+                      <div
                         key={year}
                         className={`year-item ${selectedDate.getFullYear() === year ? 'selected' : ''}`}
                         onClick={() => {
@@ -705,32 +912,6 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
             <div className="stat-card">
               <div className="stat-card-head">
                 <h3>Avg Prep Time</h3>
-                <div className="prep-filter-row prep-filter-row--top">
-                  <button
-                    type="button"
-                    className="prep-filter-btn"
-                    onClick={() => setShowPrepFilter((v) => !v)}
-                  >
-                    {prepItemFilter === 'ALL' ? 'All' : prepItemFilter} <span className="arrow">▼</span>
-                  </button>
-                  {showPrepFilter ? (
-                    <div className="prep-filter-menu">
-                      {prepFilterItems.map((opt) => (
-                        <button
-                          key={opt.key}
-                          type="button"
-                          className={`prep-filter-item ${prepItemFilter === opt.key ? 'active' : ''}`}
-                          onClick={() => {
-                            setPrepItemFilter(opt.key)
-                            setShowPrepFilter(false)
-                          }}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
               </div>
               <div className="stat-value">{displayedPrepTime}</div>
               <div className="stat-change negative">
@@ -893,18 +1074,22 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
                 <div className="order-item completed">
                   <div className="order-indicator"></div>
                   <div className="order-details">
-                    <div className="order-number">Order 4 - Completed</div>
-                    <div className="order-description">3x Baka, 4x Rice, 2x Coke</div>
+                    <div className="order-number">
+                      Order {realtimeCards.completed?.orderID ?? '--'} - Completed
+                    </div>
+                    <div className="order-description">{realtimeCards.completed?.description || '—'}</div>
                   </div>
-                  <div className="order-stamp">{order4Time}</div>
+                  <div className="order-stamp">{realtimeCards.completed?.time || '--:--'}</div>
                 </div>
                 <div className="order-item preparing">
                   <div className="order-indicator"></div>
                   <div className="order-details">
-                    <div className="order-number">Order 2 - Preparing</div>
-                    <div className="order-description">2x Bangus, 3x Rice, 1x Sprite</div>
+                    <div className="order-number">
+                      Order {realtimeCards.pending?.orderID ?? '--'} - Preparing
+                    </div>
+                    <div className="order-description">{realtimeCards.pending?.description || '—'}</div>
                   </div>
-                  <div className="order-stamp">{order2Time}</div>
+                  <div className="order-stamp">{realtimeCards.pending?.time || '--:--'}</div>
                 </div>
               </div>
             </div>
@@ -914,11 +1099,11 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
               <div className="monitoring-content">
                 <div className="monitoring-row">
                   <span className="monitoring-label">Pending Orders</span>
-                  <span className="monitoring-count">{formatInteger(17)}</span>
+                  <span className="monitoring-count">{formatInteger(monitoringCounts.pending)}</span>
                 </div>
                 <div className="monitoring-row">
                   <span className="monitoring-label">Completed Orders</span>
-                  <span className="monitoring-count">{formatInteger(23)}</span>
+                  <span className="monitoring-count">{formatInteger(monitoringCounts.completed)}</span>
                 </div>
               </div>
               <div className="orders-text">Orders</div>

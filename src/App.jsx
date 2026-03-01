@@ -169,7 +169,6 @@ function App() {
             className="login-hint"
             style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.9rem', color: '#666' }}
           >
-            Credentials are stored in Supabase database
           </p>
         </div>
       </div>

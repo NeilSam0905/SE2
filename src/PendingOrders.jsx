@@ -1,33 +1,21 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Navbar from './elements/Navbar'
 import ConfirmModal from './elements/ConfirmModal'
 import './PendingOrders.css'
 import { formatMoney } from './utils/numberFormat'
+import { fetchOrdersWithItems, markOrderCompleted, subscribeToOrderRelatedChanges } from './data/orders'
 
 function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User' }) {
-  const [orders, setOrders] = useState([
-    {
-      id: 263,
-      orderType: 'Dine - In',
-      paid: false,
-      items: [
-        { id: 'a', name: 'Sinigang na Baka', qty: 1, price: 199.0, served: true },
-        { id: 'b', name: 'Pork Shanghai', qty: 1, price: 170.0, served: false },
-        { id: 'c', name: 'Ensalada', qty: 2, price: 170.0, served: true },
-        { id: 'd', name: 'Daing na Bangus', qty: 1, price: 189.0, served: false },
-      ],
-    },
-    {
-      id: 268,
-      orderType: 'Dine - In',
-      paid: false,
-      items: [
-        { id: 'a', name: 'Coke', qty: 2, price: 60.0, served: false },
-        { id: 'b', name: 'Rice', qty: 3, price: 40.0, served: false },
-        { id: 'c', name: 'Tokwa\'t Baboy', qty: 1, price: 110.0, served: false },
-      ],
-    },
-  ])
+  const [orders, setOrders] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState('')
+  const [servedOverrides, setServedOverrides] = useState({})
+  const servedOverridesRef = useRef(servedOverrides)
+  const refreshTimerRef = useRef(null)
+
+  useEffect(() => {
+    servedOverridesRef.current = servedOverrides
+  }, [servedOverrides])
 
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [selectedOrderId, setSelectedOrderId] = useState(null)
@@ -35,27 +23,43 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
   const [showAllServedConfirm, setShowAllServedConfirm] = useState(false)
   const [pendingCompleteOrderId, setPendingCompleteOrderId] = useState(null)
 
-  const pushCompletedOrder = (order) => {
+  const loadOrders = async () => {
+    setLoading(true)
+    setLoadError('')
     try {
-      const key = 'completedOrders'
-      const raw = localStorage.getItem(key)
-      const current = raw ? JSON.parse(raw) : []
-      const list = Array.isArray(current) ? current : []
-
-      const completed = {
-        id: order.id,
-        date: new Date().toISOString(),
-        orderType: order.orderType,
-        paid: Boolean(order.paid),
-        items: (order.items || []).map(({ id, name, qty, price }) => ({ id, name, qty, price })),
-      }
-
-      const deduped = [completed, ...list.filter((o) => o && o.id !== completed.id)]
-      localStorage.setItem(key, JSON.stringify(deduped))
-    } catch {
-      // ignore storage failures
+      const list = await fetchOrdersWithItems({ completed: false })
+      const merged = list.map((o) => ({
+        ...o,
+        items: (o.items || []).map((it) => ({
+          ...it,
+          served: servedOverridesRef.current[it.id] ?? Boolean(it.served),
+        })),
+      }))
+      setOrders(merged)
+    } catch (e) {
+      console.error('Failed to load pending orders:', e)
+      setLoadError('Failed to load pending orders.')
+    } finally {
+      setLoading(false)
     }
   }
+
+  useEffect(() => {
+    loadOrders()
+
+    const unsubscribe = subscribeToOrderRelatedChanges(() => {
+      // Batch bursts of changes into a single refresh.
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+      refreshTimerRef.current = setTimeout(() => {
+        loadOrders()
+      }, 150)
+    })
+
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+      unsubscribe()
+    }
+  }, [])
 
   const ordersWithTotals = useMemo(() => {
     return orders.map((o) => {
@@ -74,6 +78,11 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
   const drawerOpen = Boolean(detailsOpen && selectedOrder)
 
   const setItemServed = (orderId, itemId, served) => {
+    setServedOverrides((prev) => {
+      const next = { ...prev, [itemId]: Boolean(served) }
+      servedOverridesRef.current = next
+      return next
+    })
     setOrders((prev) =>
       prev.map((o) => {
         if (o.id !== orderId) return o
@@ -85,25 +94,18 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
     )
   }
 
-  const completeOrder = (orderId) => {
-    setOrders((prev) => {
-      const updated = prev.find((o) => o.id === orderId)
-      if (!updated) return prev
-
-      const servedAll = {
-        ...updated,
-        items: (updated.items || []).map((it) => ({ ...it, served: true })),
-      }
-
-      pushCompletedOrder(servedAll)
-
+  const completeOrder = async (orderId) => {
+    try {
+      await markOrderCompleted(orderId)
+      setOrders((prev) => prev.filter((o) => o.id !== orderId))
       if (selectedOrderId === orderId) {
         setDetailsOpen(false)
         setSelectedOrderId(null)
       }
-
-      return prev.filter((o) => o.id !== orderId)
-    })
+    } catch (e) {
+      console.error('Failed to complete order:', e)
+      setLoadError('Failed to complete order.')
+    }
   }
 
   const requestCompleteOrder = (orderId) => {
@@ -131,6 +133,8 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
             </div>
 
             <div className="order-cards">
+              {loadError ? <div className="pending-note">{loadError}</div> : null}
+              {loading ? <div className="pending-note">Loading…</div> : null}
               {ordersWithTotals.map((o) => (
                 <button
                   key={o.id}
@@ -155,10 +159,13 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
                         ? 'Status: Done'
                         : `Status: ${o.servedCount}/${o.totalCount} Preparing`}
                     </div>
-                    <div className="status-pill unpaid">UNPAID</div>
+                    <div className="status-pill unpaid">{o.paid ? 'PAID' : 'UNPAID'}</div>
                   </div>
                 </button>
               ))}
+              {!loading && !loadError && !ordersWithTotals.length ? (
+                <div className="pending-note">No pending orders.</div>
+              ) : null}
             </div>
           </div>
 

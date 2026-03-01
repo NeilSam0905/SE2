@@ -142,13 +142,13 @@ body {
 }
 
 .login-btn {
-  width: 60%;
-  padding: 0.85rem;
+  width: 30%;
+  padding: 0.55rem;
   background-color: #8B2E2E;
   color: white;
   border: none;
   border-radius: 50px;
-  font-size: 1rem;
+  font-size: 1.10rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
