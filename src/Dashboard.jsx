@@ -15,6 +15,8 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
 
   const [orders, setOrders] = useState([])
   const [payments, setPayments] = useState([])
+  const [orderItems, setOrderItems] = useState([])
+  const [products, setProducts] = useState([])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -31,6 +33,20 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
           console.error('Supabase payments error:', paymentsError)
         } else {
           setPayments(paymentsData || [])
+        }
+
+        const { data: orderItemsData, error: orderItemsError } = await supabase.from('order_items').select('*')
+        if (orderItemsError) {
+          console.error('Supabase order_items error:', orderItemsError)
+        } else {
+          setOrderItems(orderItemsData || [])
+        }
+
+        const { data: productsData, error: productsError } = await supabase.from('products').select('*')
+        if (productsError) {
+          console.error('Supabase products error:', productsError)
+        } else {
+          setProducts(productsData || [])
         }
       } catch (error) {
         console.error('Error fetching dashboard data:', error)
@@ -320,49 +336,64 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
   }, [timeFilter])
 
   const mostSoldProducts = useMemo(() => {
-    // Categorized list for display
-    switch (timeFilter) {
-      case 'Daily':
-        return [
-          { category: 'Meat', name: 'Sinigang na Baka', orders: 24, revenue: 2480 },
-          { category: 'Meat', name: 'Crispy Pork Sisig', orders: 15, revenue: 980 },
-          { category: 'Vegetables', name: 'Labong Saluyot', orders: 18, revenue: 1400 },
-          { category: 'Drinks', name: 'Coke', orders: 20, revenue: 2400 },
-          { category: 'Others', name: 'Rice', orders: 32, revenue: 1600 },
-        ]
-      case 'Weekly':
-        return [
-          { category: 'Meat', name: 'Daing na Bangus', orders: 120, revenue: 14400 },
-          { category: 'Meat', name: 'Dinuguan', orders: 98, revenue: 9800 },
-          { category: 'Vegetables', name: 'Pinakbet', orders: 76, revenue: 7600 },
-          { category: 'Drinks', name: 'Iced Tea', orders: 110, revenue: 8800 },
-          { category: 'Others', name: 'Rice', orders: 260, revenue: 13000 },
-        ]
-      case 'Monthly':
-        return [
-          { category: 'Meat', name: 'Sinigang na Baka', orders: 620, revenue: 62000 },
-          { category: 'Meat', name: 'Crispy Pork Sisig', orders: 510, revenue: 38250 },
-          { category: 'Vegetables', name: 'Labong Saluyot', orders: 430, revenue: 32250 },
-          { category: 'Drinks', name: 'Coke', orders: 740, revenue: 59200 },
-          { category: 'Others', name: 'Rice', orders: 1800, revenue: 90000 },
-        ]
-      case 'Yearly':
-        return [
-          { category: 'Meat', name: 'Sinigang na Baka', orders: 7200, revenue: 720000 },
-          { category: 'Meat', name: 'Crispy Pork Sisig', orders: 6100, revenue: 457500 },
-          { category: 'Vegetables', name: 'Labong Saluyot', orders: 4800, revenue: 360000 },
-          { category: 'Drinks', name: 'Coke', orders: 8200, revenue: 656000 },
-          { category: 'Others', name: 'Rice', orders: 25000, revenue: 1250000 },
-        ]
-      default:
-        return [
-          { category: 'Meat', name: 'Sinigang na Baka', orders: 24, revenue: 2480 },
-          { category: 'Vegetables', name: 'Labong Saluyot', orders: 18, revenue: 1400 },
-          { category: 'Drinks', name: 'Coke', orders: 20, revenue: 2400 },
-          { category: 'Others', name: 'Rice', orders: 32, revenue: 1600 },
-        ]
+    if (!orderItems.length || !orders.length || !products.length) {
+      return []
     }
-  }, [timeFilter])
+
+    // Get the time range based on current filter
+    const { start, end } = getTimeRange
+
+    // Create a map of order dates for quick lookup
+    const orderDates = {}
+    orders.forEach((order) => {
+      const stamp = order?.orderTimestamp || order?.createdAt || order?.created_at
+      if (stamp) {
+        orderDates[order.id] = new Date(stamp)
+      }
+    })
+
+    // Filter order items within the time range by joining with orders
+    const filteredItems = orderItems.filter((item) => {
+      const orderId = item?.orderID || item?.order_id
+      if (!orderId || !orderDates[orderId]) return false
+      
+      const orderDate = orderDates[orderId]
+      return orderDate >= start && orderDate <= end
+    })
+
+    // Aggregate quantities by product
+    const productQuantities = {}
+    filteredItems.forEach((item) => {
+      const productId = item?.productID || item?.product_id
+      if (!productId) return
+      
+      const quantity = Number(item?.quantity || 0)
+      if (!productQuantities[productId]) {
+        productQuantities[productId] = 0
+      }
+      productQuantities[productId] += quantity
+    })
+
+    // Create product list with quantities and type from products table
+    const result = Object.entries(productQuantities)
+      .map(([productId, quantity]) => {
+        const product = products.find((p) => String(p.id) === String(productId))
+        if (!product) return null
+
+        return {
+          id: productId,
+          name: product.name || 'Unknown Product',
+          category: product.type || 'Others',
+          orders: quantity,
+          revenue: quantity * (Number(product.price) || 0),
+        }
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.orders - a.orders)
+      .slice(0, 5) // Top 5 products
+
+    return result
+  }, [orderItems, orders, products, getTimeRange])
 
   const categorizedMostSold = useMemo(() => {
     const order = ['Meat', 'Vegetables', 'Drinks', 'Others']
