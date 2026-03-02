@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import './Dashboard.css'
+import './styles/Dashboard.css'
 import Navbar from './elements/Navbar'
-import { supabase } from './supabaseClient'
+import { supabase } from './lib/supabaseClient'
+import { getPublicStorageUrl, PRODUCT_IMAGE_BUCKET } from './lib/supabaseClient'
 import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { formatInteger } from './utils/numberFormat'
 import { subscribeToOrderRelatedChanges } from './data/orders'
@@ -56,10 +57,25 @@ const mapProductCategoryForPie = (type) => {
 const mapProductCategoryForMostSold = (type) => {
   const t = normalizeText(type)
   if (t === 'meat') return 'Meat'
-  if (t === 'vegetables' || t === 'vegetable') return 'Vegetables'
+  if (t === 'vegetables' || t === 'vegetable') return 'Vegetable'
   if (t === 'drinks' || t === 'drink') return 'Drinks'
   if (t === 'others' || t === 'other') return 'Others'
   return 'Others'
+}
+
+const buildProductImageUrl = (productObj) => {
+  if (!productObj) return null
+
+  const imagePath = productObj?.image_path || productObj?.imagePath
+  if (imagePath) return getPublicStorageUrl(PRODUCT_IMAGE_BUCKET, imagePath)
+
+  const imageUrl = productObj?.image_url || productObj?.imageUrl
+  if (imageUrl) return imageUrl
+
+  const legacy = productObj?.image
+  if (legacy) return legacy
+
+  return null
 }
 
 const buildOrderDescription = (items) => {
@@ -101,10 +117,22 @@ async function fetchOrderItemsForOrderIds(orderIds) {
   const ids = Array.isArray(orderIds) ? orderIds.filter((x) => x != null) : []
   if (!ids.length) return []
 
-  const { data, error } = await supabase
-    .from('order_items')
-    .select('orderItemID, orderID, quantity, price, products(productID, productName, type, price)')
-    .in('orderID', ids)
+  const preferredSelect = 'orderItemID, orderID, quantity, price, products(productID, productName, type, price, image_path)'
+  const fallbackSelect = 'orderItemID, orderID, quantity, price, products(productID, productName, type, price)'
+
+  let data
+  let error
+  {
+    const res = await supabase.from('order_items').select(preferredSelect).in('orderID', ids)
+    data = res.data
+    error = res.error
+  }
+
+  if (error) {
+    const fb = await supabase.from('order_items').select(fallbackSelect).in('orderID', ids)
+    data = fb.data
+    error = fb.error
+  }
 
   if (error) throw error
   return Array.isArray(data) ? data : []
@@ -502,6 +530,10 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
     return raw
   }, [filteredPayments, orderItems])
 
+  const hasSalesBreakdown = useMemo(() => {
+    return Array.isArray(salesData) && salesData.some((d) => Number(d?.value || 0) > 0)
+  }, [salesData])
+
   const mostSoldProducts = useMemo(() => {
     const paidOrders = new Set((filteredPayments || []).map((p) => p?.orderID).filter((x) => x != null))
     const byProduct = new Map()
@@ -512,14 +544,16 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
       const name = oi?.products?.productName || 'Item'
       const type = oi?.products?.type
       const category = mapProductCategoryForMostSold(type)
+      const image = buildProductImageUrl(oi?.products)
       const qty = Number(oi?.quantity || 0)
       const unit = Number(oi?.price ?? oi?.products?.price ?? 0)
       const revenue = qty * unit
 
-      if (!byProduct.has(name)) byProduct.set(name, { category, name, orders: 0, revenue: 0 })
+      if (!byProduct.has(name)) byProduct.set(name, { category, name, image: image || null, orders: 0, revenue: 0 })
       const agg = byProduct.get(name)
       agg.orders += qty
       agg.revenue += revenue
+      if (!agg.image && image) agg.image = image
       byProduct.set(name, agg)
 
       if (!distinctOrdersByProduct.has(name)) distinctOrdersByProduct.set(name, new Set())
@@ -531,13 +565,13 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
       .map((p) => ({ ...p, distinctOrders: distinctOrdersByProduct.get(p.name)?.size || 0 }))
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 5)
-      .map((p) => ({ category: p.category, name: p.name, orders: p.distinctOrders || p.orders, revenue: Math.round(p.revenue) }))
+      .map((p) => ({ category: p.category, name: p.name, image: p.image || null, orders: p.distinctOrders || p.orders, revenue: Math.round(p.revenue) }))
 
     return list
   }, [filteredPayments, orderItems])
 
   const categorizedMostSold = useMemo(() => {
-    const order = ['Meat', 'Vegetables', 'Drinks', 'Others']
+    const order = ['Meat', 'Vegetable', 'Drinks', 'Others']
     const grouped = mostSoldProducts.reduce((acc, item) => {
       const key = item.category || 'Others'
       acc[key] = acc[key] || []
@@ -548,6 +582,8 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
       .filter((k) => grouped[k] && grouped[k].length)
       .map((k) => ({ category: k, items: grouped[k] }))
   }, [mostSoldProducts])
+
+  const hasMostSold = categorizedMostSold.length > 0
 
   const trendXAxisLabel = useMemo(() => {
     switch (trendFilter) {
@@ -937,49 +973,55 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
             <div className="dashboard-section total-sales-section">
               <h2>Total Sales</h2>
               <div className="sales-content">
-                <div className="pie-chart-container">
-                  <ResponsiveContainer width="100%" height={200}>
-                    <PieChart>
-                      <Pie
-                        data={salesData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={80}
-                        dataKey="value"
-                      >
-                        {salesData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip 
-                        formatter={(value) => `${value}%`}
-                        contentStyle={{ backgroundColor: '#fff', border: '2px solid #000', borderRadius: '8px' }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="chart-center-text">
-                    <div className="center-label"></div>
-                    <div className="center-value"></div>
-                  </div>
-                </div>
-                <div className="sales-info">
-                  <div className="sales-amount">{salesAmount}</div>
-                  <div className="sales-legend">
-                    <div className="legend-item">
-                      <span className="legend-color" style={{backgroundColor: '#5BC0BE'}}></span>
-                      <span>Food</span>
+                {hasSalesBreakdown ? (
+                  <>
+                    <div className="pie-chart-container">
+                      <ResponsiveContainer width="100%" height={200}>
+                        <PieChart>
+                          <Pie
+                            data={salesData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={80}
+                            dataKey="value"
+                          >
+                            {salesData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            formatter={(value) => `${value}%`}
+                            contentStyle={{ backgroundColor: '#fff', border: '2px solid #000', borderRadius: '8px' }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="chart-center-text">
+                        <div className="center-label"></div>
+                        <div className="center-value"></div>
+                      </div>
                     </div>
-                    <div className="legend-item">
-                      <span className="legend-color" style={{backgroundColor: '#E07A5F'}}></span>
-                      <span>Drinks</span>
+                    <div className="sales-info">
+                      <div className="sales-amount">{salesAmount}</div>
+                      <div className="sales-legend">
+                        <div className="legend-item">
+                          <span className="legend-color" style={{ backgroundColor: '#5BC0BE' }}></span>
+                          <span>Food</span>
+                        </div>
+                        <div className="legend-item">
+                          <span className="legend-color" style={{ backgroundColor: '#E07A5F' }}></span>
+                          <span>Drinks</span>
+                        </div>
+                        <div className="legend-item">
+                          <span className="legend-color" style={{ backgroundColor: '#F2CC8F' }}></span>
+                          <span>Others</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="legend-item">
-                      <span className="legend-color" style={{backgroundColor: '#F2CC8F'}}></span>
-                      <span>Others</span>
-                    </div>
-                  </div>
-                </div>
+                  </>
+                ) : (
+                  <div className="dashboard-empty-note">Nothing to show here.</div>
+                )}
               </div>
             </div>
 
@@ -993,21 +1035,30 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
                 <span>Sales</span>
               </div>
               <div className="most-sold-list">
-                {categorizedMostSold.map((group) => (
-                  <div key={group.category} className="most-sold-category">
-                    <div className="most-sold-category-title">{group.category}</div>
-                    {group.items.map((product, index) => (
-                      <div key={`${group.category}-${index}`} className="product-item">
-                        <div className="product-info">
-                          <div className="product-image"></div>
-                          <span className="product-name">{product.name}</span>
+                {hasMostSold ? (
+                  categorizedMostSold.map((group) => (
+                    <div key={group.category} className="most-sold-category">
+                      <div className="most-sold-category-title">{group.category}</div>
+                      {group.items.map((product, index) => (
+                        <div key={`${group.category}-${index}`} className="product-item">
+                          <div className="product-info">
+                            <img
+                              className="product-image"
+                              src={product.image || '/product1.jpg'}
+                              alt={product.name}
+                              loading="lazy"
+                            />
+                            <span className="product-name">{product.name}</span>
+                          </div>
+                          <span className="product-orders">{formatInteger(product.orders)}</span>
+                          <span className="product-revenue">₱{formatInteger(product.revenue)}</span>
                         </div>
-                        <span className="product-orders">{formatInteger(product.orders)}</span>
-                        <span className="product-revenue">₱{formatInteger(product.revenue)}</span>
-                      </div>
-                    ))}
-                  </div>
-                ))}
+                      ))}
+                    </div>
+                  ))
+                ) : (
+                  <div className="dashboard-empty-note">Nothing to show here.</div>
+                )}
               </div>
             </div>
           </div>

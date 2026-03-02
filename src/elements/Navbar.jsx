@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import './Navbar.css'
+import '../styles/Navbar.css'
 import logoImage from '../../images/Staff View.png'
 import menuIcon from '../../public/Menu Icon Logo.webp'
 import ConfirmModal from './ConfirmModal'

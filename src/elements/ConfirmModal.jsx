@@ -1,4 +1,4 @@
-import './ConfirmModal.css'
+import '../styles/ConfirmModal.css'
 
 function ConfirmModal({
   open,

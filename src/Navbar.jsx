@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import './Navbar.css'
+import './styles/NavbarLegacy.css'
 import logoImage from '../images/Staff View.png'
 import menuIcon from '../public/Menu Icon Logo.webp'
 

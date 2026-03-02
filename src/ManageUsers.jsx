@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import Navbar from './elements/Navbar'
-import './ManageUsers.css'
+import './styles/ManageUsers.css'
 import { formatInteger } from './utils/numberFormat'
 import ConfirmModal from './elements/ConfirmModal'
-import { supabase } from './supabaseClient'
+import { supabase } from './lib/supabaseClient'
 
 function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User' }) {
   const [searchTerm, setSearchTerm] = useState('')
@@ -19,18 +19,24 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
 
   const [users, setUsers] = useState([])
 
-  const toActive = (u) => {
+  const getStatusText = (u) => String(u?.status || '').trim().toLowerCase()
+
+  // Enabled/disabled state for Manage Users toggle.
+  const isEnabledAccount = (u) => {
     if (typeof u?.active === 'boolean') return u.active
-    const status = String(u?.status || '').toLowerCase()
+    const status = getStatusText(u)
     if (!status) return true
-    return status !== 'inactive'
+    return status !== 'deactivated'
   }
+
+  // Online/offline (login presence) for the "Active Staff/Admin" cards.
+  const isOnline = (u) => getStatusText(u) === 'active'
 
   const normalizeUser = (u) => {
     if (!u) return null
     return {
       ...u,
-      active: toActive(u),
+      active: isEnabledAccount(u),
     }
   }
 
@@ -49,6 +55,20 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
 
   useEffect(() => {
     getUsers()
+
+    const onFocus = () => {
+      getUsers()
+    }
+
+    window.addEventListener('focus', onFocus)
+    const intervalId = setInterval(() => {
+      getUsers()
+    }, 5000)
+
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      clearInterval(intervalId)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -97,7 +117,8 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
       const trimmed = {
         name: newUser.name.trim(),
         role: newUser.role,
-        status: newUser.active ? 'Active' : 'Inactive',
+        // 'Inactive' means enabled but logged out; 'Deactivated' blocks login.
+        status: newUser.active ? 'Inactive' : 'Deactivated',
         password: String(newUser.password || '').trim(),
       }
 
@@ -123,7 +144,7 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
       const updatePayload = {
         name: String(editingUser.name || '').trim(),
         role: editingUser.role,
-        status: editingUser.active ? 'Active' : 'Inactive',
+        status: editingUser.active ? 'Inactive' : 'Deactivated',
       }
 
       const nextPassword = String(editingUser.password || '').trim()
@@ -163,21 +184,21 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
   }, [users, searchTerm, roleFilter])
 
   const counts = useMemo(() => {
-    const activeUsers = users.filter((u) => toActive(u))
-    const activeStaff = activeUsers.filter((u) => String(u.role).toLowerCase() === 'staff').length
-    const activeAdmins = activeUsers.filter((u) => String(u.role).toLowerCase() === 'admin').length
+    const onlineUsers = users.filter((u) => isOnline(u))
+    const activeStaff = onlineUsers.filter((u) => String(u.role).toLowerCase() === 'staff').length
+    const activeAdmins = onlineUsers.filter((u) => String(u.role).toLowerCase() === 'admin').length
     return { activeStaff, activeAdmins }
   }, [users])
 
   const activeStaffUsers = useMemo(() => {
     return users
-      .filter((u) => toActive(u) && String(u.role || '').toLowerCase() === 'staff')
+      .filter((u) => isOnline(u) && String(u.role || '').toLowerCase() === 'staff')
       .map((u) => ({ id: u.id, name: u.name }))
   }, [users])
 
   const activeAdminUsers = useMemo(() => {
     return users
-      .filter((u) => toActive(u) && String(u.role || '').toLowerCase() === 'admin')
+      .filter((u) => isOnline(u) && String(u.role || '').toLowerCase() === 'admin')
       .map((u) => ({ id: u.id, name: u.name }))
   }, [users])
 

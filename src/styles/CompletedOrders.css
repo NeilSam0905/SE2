@@ -17,7 +17,8 @@
   flex: 0 0 auto;
   background: #f5e6d3;
   max-height: 720px;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: visible;
   min-height: 0;
 }
 
@@ -58,9 +59,12 @@
   flex-direction: column;
   gap: 1.5rem;
   padding-right: 1.5rem;
+  padding-top: 6px;
+  padding-bottom: 6px;
   flex: 0 0 auto;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: visible;
   /* Shows roughly 3 cards, then scroll */
   max-height: 480px;
 }
@@ -78,6 +82,15 @@
   min-height: 140px;
   cursor: pointer;
   text-align: left;
+  position: relative;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.completed-orders-page .order-card:hover {
+  background: #fbfbfb;
+  z-index: 2;
+  transform: translateY(-3px);
+  box-shadow: 0 14px 24px rgba(0, 0, 0, 0.18);
 }
 
 .completed-orders-page .order-link {
@@ -198,6 +211,8 @@
   border-radius: 6px;
   border: 1px solid rgba(0, 0, 0, 0.2);
   background: #e6e6e6;
+  object-fit: cover;
+  display: block;
 }
 
 .completed-orders-page .item-name {

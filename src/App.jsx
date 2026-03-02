@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import './App.css'
+import './styles/App.css'
 import logoImage from '../images/Staff View.png'
 import Dashboard from './Dashboard.jsx'
 import Menu from './Menu.jsx'
 import PendingOrders from './PendingOrders.jsx'
 import CompletedOrders from './CompletedOrders.jsx'
 import ManageUsers from './ManageUsers.jsx'
-import { supabase } from './supabaseClient'
+import { supabase } from './lib/supabaseClient'
 
 function App() {
   const [name, setName] = useState('')
@@ -27,6 +27,13 @@ function App() {
     return saved || 'Admin User'
   })
 
+  const [userId, setUserId] = useState(() => {
+    const saved = localStorage.getItem('userId')
+    if (!saved) return null
+    const n = Number(saved)
+    return Number.isFinite(n) ? n : null
+  })
+
   useEffect(() => {
     localStorage.setItem('isLoggedIn', JSON.stringify(isLoggedIn))
   }, [isLoggedIn])
@@ -38,6 +45,38 @@ function App() {
   useEffect(() => {
     localStorage.setItem('userName', userName)
   }, [userName])
+
+  useEffect(() => {
+    if (userId == null) localStorage.removeItem('userId')
+    else localStorage.setItem('userId', String(userId))
+  }, [userId])
+
+  const setOnlineStatus = async (id, online) => {
+    if (id == null) return false
+
+    // NOTE: We use a 3-state model:
+    // - Active: logged in
+    // - Inactive: logged out
+    // - Deactivated: account disabled (cannot log in)
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ status: online ? 'Active' : 'Inactive' })
+      .eq('id', id)
+
+    if (updateError) {
+      // If RLS/privileges block it, don't break login/logout, but log it.
+      console.warn('Failed to update user status:', updateError)
+      return false
+    }
+
+    return true
+  }
+
+  useEffect(() => {
+    if (!isLoggedIn || userId == null) return
+    setOnlineStatus(userId, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn, userId])
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -60,7 +99,7 @@ function App() {
         return
       }
 
-      if (String(data.status || '').toLowerCase() === 'inactive') {
+      if (String(data.status || '').toLowerCase() === 'deactivated') {
         setError('Your account has been deactivated. Please contact an administrator.')
         setName('')
         setPassword('')
@@ -69,6 +108,15 @@ function App() {
       }
 
       const nextRole = String(data.role || 'staff').toLowerCase()
+      const nextUserId = data.id != null ? Number(data.id) : null
+
+      if (nextUserId != null) {
+        setUserId(nextUserId)
+        await setOnlineStatus(nextUserId, true)
+      } else {
+        setUserId(null)
+      }
+
       setUserRole(nextRole)
       setUserName(data.name || 'User')
       setIsLoggedIn(true)
@@ -88,8 +136,13 @@ function App() {
     }
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const fallbackIdRaw = localStorage.getItem('userId')
+    const fallbackId = fallbackIdRaw != null ? Number(fallbackIdRaw) : null
+    const id = userId ?? (Number.isFinite(fallbackId) ? fallbackId : null)
+    if (id != null) await setOnlineStatus(id, false)
     setIsLoggedIn(false)
+    setUserId(null)
     setUserRole('admin')
     setUserName('Admin User')
     setCurrentPage('dashboard')

@@ -1,4 +1,4 @@
-import { supabase } from '../supabaseClient'
+import { getPublicStorageUrl, PRODUCT_IMAGE_BUCKET, supabase } from '../lib/supabaseClient'
 
 const normalize = (value) => String(value ?? '').trim().toLowerCase().replace(/[^a-z]/g, '')
 
@@ -15,6 +15,21 @@ const getField = (obj, keys) => {
     if (obj[key] !== undefined && obj[key] !== null) return obj[key]
   }
   return undefined
+}
+
+const buildProductImageUrl = (productObj) => {
+  if (!productObj) return null
+
+  const imagePath = getField(productObj, ['image_path', 'imagePath'])
+  if (imagePath) return getPublicStorageUrl(PRODUCT_IMAGE_BUCKET, imagePath)
+
+  const imageUrl = getField(productObj, ['image_url', 'imageUrl'])
+  if (imageUrl) return imageUrl
+
+  const legacy = getField(productObj, ['image'])
+  if (legacy) return legacy
+
+  return null
 }
 
 const mapOrderRowToUi = (row, { includeServedFlag = false } = {}) => {
@@ -37,6 +52,7 @@ const mapOrderRowToUi = (row, { includeServedFlag = false } = {}) => {
   const items = (Array.isArray(orderItems) ? orderItems : []).map((oi) => {
     const productObj = oi?.products || oi?.product || null
     const name = getField(productObj, ['productName', 'name']) || 'Item'
+    const image = buildProductImageUrl(productObj)
     const quantity = Number(getField(oi, ['quantity', 'qty']) || 0)
     const price = Number(
       getField(oi, ['price']) ??
@@ -49,6 +65,7 @@ const mapOrderRowToUi = (row, { includeServedFlag = false } = {}) => {
     const base = {
       id: itemId != null ? String(itemId) : `${String(id ?? 'order')}-${name}`,
       name,
+      image,
       qty: quantity,
       price,
     }
@@ -71,10 +88,35 @@ const mapOrderRowToUi = (row, { includeServedFlag = false } = {}) => {
 }
 
 export async function fetchOrdersWithItems({ completed }) {
-  const { data, error } = await supabase
-    .from('orders')
-    .select(
-      `
+  const baseSelect = `
+      orderID,
+      orderType,
+      status,
+      orderTimestamp,
+      completeTimestamp,
+      paymentstatus,
+      order_items(
+        orderItemID,
+        quantity,
+        price,
+        productID,
+        products(productName, price, image_path)
+      ),
+      payments(paymentID, totalAmount, paymentTimestamp)
+    `
+
+  let data
+  let error
+
+  {
+    const res = await supabase.from('orders').select(baseSelect)
+    data = res.data
+    error = res.error
+  }
+
+  // Backward-compatible fallback for DBs that haven't added product image columns yet.
+  if (error) {
+    const fallbackSelect = `
       orderID,
       orderType,
       status,
@@ -89,8 +131,12 @@ export async function fetchOrdersWithItems({ completed }) {
         products(productName, price)
       ),
       payments(paymentID, totalAmount, paymentTimestamp)
-    `,
-    )
+    `
+
+    const fb = await supabase.from('orders').select(fallbackSelect)
+    data = fb.data
+    error = fb.error
+  }
 
   if (error) throw error
 

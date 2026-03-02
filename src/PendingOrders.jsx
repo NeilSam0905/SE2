@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Navbar from './elements/Navbar'
 import ConfirmModal from './elements/ConfirmModal'
-import './PendingOrders.css'
+import './styles/PendingOrders.css'
 import { formatMoney } from './utils/numberFormat'
 import { fetchOrdersWithItems, markOrderCompleted, subscribeToOrderRelatedChanges } from './data/orders'
 
@@ -188,7 +188,12 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
               <div className="details-items">
                 {selectedOrder.items.map((it) => (
                   <div key={it.id} className="details-item">
-                    <div className="item-image" aria-hidden="true" />
+                    <img
+                      className="item-image"
+                      src={it.image || '/product1.jpg'}
+                      alt={it.name}
+                      loading="lazy"
+                    />
                     <div className="item-main">
                       <div className="item-name">{it.name}</div>
                       <div className="item-qty">Qty. {it.qty}</div>

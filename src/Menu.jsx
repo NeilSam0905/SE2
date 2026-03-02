@@ -1,8 +1,43 @@
 import { useMemo, useState, useEffect } from 'react'
 import Navbar from './elements/Navbar'
-import './Menu.css'
+import './styles/Menu.css'
 import ConfirmModal from './elements/ConfirmModal'
-import { supabase } from './supabaseClient'
+import { getPublicStorageUrl, PRODUCT_IMAGE_BUCKET, supabase, uploadProductImage } from './lib/supabaseClient'
+
+const PRODUCTS_CACHE_KEY = 'products_cache_v1'
+const PRODUCTS_CACHE_MAX_AGE_MS = 5 * 60 * 1000
+
+const normalizeText = (value) => String(value || '').trim().toLowerCase()
+
+const normalizeProductType = (raw) => {
+  const t = normalizeText(raw)
+  if (t === 'meat') return 'Meat'
+  if (t === 'vegetable' || t === 'vegetables') return 'Vegetable'
+  if (t === 'drinks' || t === 'drink') return 'Drinks'
+  if (t === 'others' || t === 'other') return 'Others'
+  if (t === 'food') return 'Others'
+  return 'Others'
+}
+
+const PRODUCT_TYPE_OPTIONS = [
+  { key: 'Meat', label: 'Meat' },
+  { key: 'Vegetable', label: 'Vegetable' },
+  { key: 'Drinks', label: 'Drinks' },
+  { key: 'Others', label: 'Others' },
+]
+
+const buildProductImageUrl = (row) => {
+  const imagePath = row?.image_path || row?.imagePath
+  if (imagePath) return getPublicStorageUrl(PRODUCT_IMAGE_BUCKET, imagePath)
+
+  const imageUrl = row?.image_url || row?.imageUrl
+  if (imageUrl) return imageUrl
+
+  const legacy = row?.image
+  if (legacy) return legacy
+
+  return '/product1.jpg'
+}
 
 function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User' }) {
   const [showAddModal, setShowAddModal] = useState(false)
@@ -19,16 +54,28 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
     name: '',
     price: '',
     status: 'AVAILABLE',
-    type: 'Food',
+    type: 'Meat',
     image: '/product1.jpg'
   })
+
+  const [newProductImageFile, setNewProductImageFile] = useState(null)
+  const [editingProductImageFile, setEditingProductImageFile] = useState(null)
 
   const [products, setProducts] = useState([])
 
   // --- 1. READ (Fetch from Supabase) ---
   const fetchProducts = async () => {
     try {
-      const { data, error } = await supabase.from('products').select('*')
+      const preferredSelect = 'productID, productName, price, status, type, image_path, image_url, image'
+      let { data, error } = await supabase.from('products').select(preferredSelect).order('productID', { ascending: true })
+
+      // Backward-compatible fallback if the DB doesn't have the new image columns yet.
+      if (error) {
+        const fallback = await supabase.from('products').select('*').order('productID', { ascending: true })
+        data = fallback.data
+        error = fallback.error
+      }
+
       if (error) throw error
       
       if (data) {
@@ -37,10 +84,17 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
           name: p.productName,
           price: p.price,
           status: p.status,
-          type: p.type || 'OTHERS',
-          image: p.image || '/product1.jpg'
+          type: normalizeProductType(p.type),
+          imagePath: p.image_path || null,
+          image: buildProductImageUrl(p),
         }))
         setProducts(mappedData)
+
+        try {
+          localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: mappedData }))
+        } catch {
+          // ignore cache failures
+        }
       }
     } catch (err) {
       console.error('Error fetching products:', err.message)
@@ -48,6 +102,20 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
   }
 
   useEffect(() => {
+    // Instant paint: show last menu snapshot (if any), then refresh.
+    try {
+      const raw = localStorage.getItem(PRODUCTS_CACHE_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        const age = Date.now() - Number(parsed?.ts || 0)
+        if (Array.isArray(parsed?.data) && age < PRODUCTS_CACHE_MAX_AGE_MS) {
+          setProducts(parsed.data)
+        }
+      }
+    } catch {
+      // ignore cache parse failures
+    }
+
     fetchProducts()
   }, [])
 
@@ -67,25 +135,36 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
 
   // --- 3. CREATE PRODUCT (With dynamic ID fix) ---
   const handleSaveNewProduct = async () => {
-    // Calculate the next ID based on existing products
-    const highestId = products.length > 0 ? Math.max(...products.map(p => p.id)) : 100
-    const nextId = highestId + 1
-
-    const { error } = await supabase.from('products').insert([{
-      productID: nextId, 
+    const insertPayload = {
       productName: newProduct.name,
       price: Number(newProduct.price),
       status: newProduct.status,
       type: newProduct.type,
-      // image: newProduct.image // Uncomment when ready to handle real image saving
-    }])
-
-    if (!error) {
-      fetchProducts()
-      setShowAddModal(false)
-    } else {
-      console.error("Error inserting:", error)
     }
+
+    const { data: created, error } = await supabase
+      .from('products')
+      .insert([insertPayload])
+      .select('productID')
+      .single()
+
+    if (error) throw error
+
+    const createdId = created?.productID
+    if (createdId == null) throw new Error('Insert succeeded but no productID was returned')
+
+    if (newProductImageFile) {
+      const uploaded = await uploadProductImage({ file: newProductImageFile, productId: createdId })
+      const { error: imgError } = await supabase
+        .from('products')
+        .update({ image_path: uploaded.path })
+        .eq('productID', createdId)
+
+      if (imgError) throw imgError
+    }
+
+    await fetchProducts()
+    setShowAddModal(false)
   }
 
   // --- 4. UPDATE PRODUCT (Edit) ---
@@ -97,16 +176,23 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
         price: Number(editingProduct.price),
         status: editingProduct.status,
         type: editingProduct.type,
-        // image: editingProduct.image // Uncomment when ready to handle real image saving
       })
       .eq('productID', editingProduct.id)
 
-    if (!error) {
-      fetchProducts()
-      setShowEditModal(false)
-    } else {
-      console.error("Error updating:", error)
+    if (error) throw error
+
+    if (editingProductImageFile) {
+      const uploaded = await uploadProductImage({ file: editingProductImageFile, productId: editingProduct.id })
+      const { error: imgError } = await supabase
+        .from('products')
+        .update({ image_path: uploaded.path })
+        .eq('productID', editingProduct.id)
+
+      if (imgError) throw imgError
     }
+
+    await fetchProducts()
+    setShowEditModal(false)
   }
 
   // --- FILTERING & CATEGORIES ---
@@ -114,7 +200,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
     const q = searchTerm.trim().toLowerCase()
     return products.filter((p) => {
       const matchesQuery = !q || String(p.name || '').toLowerCase().includes(q)
-      const type = p.type || 'OTHERS'
+      const type = normalizeProductType(p.type)
       const matchesType = categoryFilter === 'ALL' || type.toUpperCase() === categoryFilter.toUpperCase()
       return matchesQuery && matchesType
     })
@@ -122,13 +208,14 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
 
   const categorizedProducts = useMemo(() => {
     const order = [
-      { key: 'Food', label: 'Food Items' },
-      { key: 'Drink', label: 'Drinks' },
-      { key: 'OTHERS', label: 'Others' },
+      { key: 'Meat', label: 'Meat' },
+      { key: 'Vegetable', label: 'Vegetable' },
+      { key: 'Drinks', label: 'Drinks' },
+      { key: 'Others', label: 'Others' },
     ]
 
     const grouped = filteredProducts.reduce((acc, product) => {
-      const type = product.type || 'OTHERS'
+      const type = normalizeProductType(product.type)
       acc[type] = acc[type] || []
       acc[type].push(product)
       return acc
@@ -144,6 +231,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
     const product = products.find(p => p.id === id)
     setEditingProduct({ ...product })
     setOriginalProduct({ ...product })
+    setEditingProductImageFile(null)
     setShowEditModal(true)
   }
 
@@ -152,50 +240,60 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
       name: '',
       price: '',
       status: 'AVAILABLE',
-      type: 'Food',
+      type: 'Meat',
       image: '/product1.jpg'
     })
+    setNewProductImageFile(null)
     setShowAddModal(true)
   }
 
   const openSaveConfirm = (mode) => setConfirmState({ open: true, mode })
   const closeSaveConfirm = () => setConfirmState({ open: false, mode: null })
 
-  const runConfirmedSave = () => {
-    if (confirmState.mode === 'add') {
-      handleSaveNewProduct()
-      setResultState({
-        open: true,
-        title: 'Product Added',
-        message: `Added: ${newProduct.name}\nPrice: ₱ ${Number(newProduct.price || 0).toFixed(2)}\nStatus: ${newProduct.status}`,
-      })
-    }
+  const runConfirmedSave = async () => {
+    try {
+      if (confirmState.mode === 'add') {
+        await handleSaveNewProduct()
+        setResultState({
+          open: true,
+          title: 'Product Added',
+          message: `Added: ${newProduct.name}\nPrice: ₱ ${Number(newProduct.price || 0).toFixed(2)}\nStatus: ${newProduct.status}`,
+        })
+      }
 
-    if (confirmState.mode === 'edit') {
-      const summary = buildEditSummary()
-      handleSaveEdit()
+      if (confirmState.mode === 'edit') {
+        const summary = buildEditSummary()
+        await handleSaveEdit()
+        setResultState({
+          open: true,
+          title: 'Product Updated',
+          message: summary,
+        })
+      }
+    } catch (err) {
+      console.error('Save failed:', err)
       setResultState({
         open: true,
-        title: 'Product Updated',
-        message: summary,
+        title: 'Save Failed',
+        message: String(err?.message || err || 'Unknown error'),
       })
+    } finally {
+      closeSaveConfirm()
     }
-    closeSaveConfirm()
   }
 
   const handleImageUpload = (e, isEdit = false) => {
     const file = e.target.files && e.target.files[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => {
-      const dataUrl = String(reader.result)
-      if (isEdit) {
-        setEditingProduct((prev) => (prev ? { ...prev, image: dataUrl } : prev))
-      } else {
-        setNewProduct((prev) => ({ ...prev, image: dataUrl }))
-      }
+
+    const previewUrl = URL.createObjectURL(file)
+    if (isEdit) {
+      setEditingProductImageFile(file)
+      setEditingProduct((prev) => (prev ? { ...prev, image: previewUrl } : prev))
+    } else {
+      setNewProductImageFile(file)
+      setNewProduct((prev) => ({ ...prev, image: previewUrl }))
     }
-    reader.readAsDataURL(file)
   }
 
   const saveDisabled = useMemo(() => {
@@ -237,9 +335,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
               <div className="menu-mu-filter-menu">
                 {[
                   { key: 'ALL', label: 'All' },
-                  { key: 'Food', label: 'Food' },
-                  { key: 'Drink', label: 'Drinks' },
-                  { key: 'OTHERS', label: 'Others' },
+                    ...PRODUCT_TYPE_OPTIONS.map((t) => ({ key: t.key, label: t.label })),
                 ].map((opt) => (
                   <button
                     key={opt.key}
@@ -277,7 +373,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
                 {group.items.map((product) => (
                   <div key={product.id} className="menu-row menu-row-grid">
                     <div className="menu-cell product-cell">
-                      <img src={product.image} alt={product.name} className="product-image" />
+                      <img src={product.image} alt={product.name} className="product-image" loading="lazy" />
                       <span className="product-name">{product.name}</span>
                     </div>
                     <div className="menu-cell status-cell">
@@ -336,9 +432,9 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
                   <div className="form-group">
                     <label>TYPE</label>
                     <select value={newProduct.type} onChange={(e) => setNewProduct({...newProduct, type: e.target.value})}>
-                      <option value="Food">Food</option>
-                      <option value="Drink">Drink</option>
-                      <option value="OTHERS">Others</option>
+                      {PRODUCT_TYPE_OPTIONS.map((opt) => (
+                        <option key={opt.key} value={opt.key}>{opt.label}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -391,10 +487,10 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
                   </div>
                   <div className="form-group">
                     <label>TYPE</label>
-                    <select value={editingProduct.type || 'Food'} onChange={(e) => setEditingProduct({...editingProduct, type: e.target.value})}>
-                      <option value="Food">Food</option>
-                      <option value="Drink">Drink</option>
-                      <option value="OTHERS">Others</option>
+                    <select value={normalizeProductType(editingProduct.type) || 'Meat'} onChange={(e) => setEditingProduct({...editingProduct, type: e.target.value})}>
+                      {PRODUCT_TYPE_OPTIONS.map((opt) => (
+                        <option key={opt.key} value={opt.key}>{opt.label}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
