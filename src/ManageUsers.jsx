@@ -4,6 +4,7 @@ import './styles/ManageUsers.css'
 import { formatInteger } from './utils/numberFormat'
 import ConfirmModal from './elements/ConfirmModal'
 import { supabase } from './lib/supabaseClient'
+import { ADD_PRODUCT_BUTTON_ICON } from './utils/publicAsset'
 
 function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User' }) {
   const [searchTerm, setSearchTerm] = useState('')
@@ -338,7 +339,7 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
 
             <button type="button" className="mu-pill-btn mu-add-btn" onClick={handleOpenAdd}>
               <span className="mu-add-icon" aria-hidden="true">
-                <img src="/add_product_button.png" alt="" />
+                <img src={ADD_PRODUCT_BUTTON_ICON} alt="" />
               </span>
               ADD USER
             </button>
@@ -456,7 +457,7 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
                   disabled={addSaveDisabled}
                   style={addSaveDisabled ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
                 >
-                  <img src="/add_product_button.png" alt="" className="save-icon-img" />
+                  <img src={ADD_PRODUCT_BUTTON_ICON} alt="" className="save-icon-img" />
                   SAVE USER
                 </button>
               </div>
@@ -525,7 +526,7 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
                   disabled={editSaveDisabled}
                   style={editSaveDisabled ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
                 >
-                  <img src="/add_product_button.png" alt="" className="save-icon-img" />
+                  <img src={ADD_PRODUCT_BUTTON_ICON} alt="" className="save-icon-img" />
                   SAVE EDIT
                 </button>
               </div>

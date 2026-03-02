@@ -3,6 +3,7 @@ import Navbar from './elements/Navbar'
 import './styles/Menu.css'
 import ConfirmModal from './elements/ConfirmModal'
 import { getPublicStorageUrl, PRODUCT_IMAGE_BUCKET, supabase, uploadProductImage } from './lib/supabaseClient'
+import { ADD_PRODUCT_BUTTON_ICON } from './utils/publicAsset'
 
 const PRODUCTS_CACHE_KEY = 'products_cache_v1'
 const PRODUCTS_CACHE_MAX_AGE_MS = 5 * 60 * 1000
@@ -351,7 +352,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
           </div>
 
           <button className="add-product-btn menu-mu-add" onClick={handleAddProduct} type="button">
-            <img src="/add_product_button.png" alt="Add" className="add-icon-img" />
+            <img src={ADD_PRODUCT_BUTTON_ICON} alt="Add" className="add-icon-img" />
             ADD PRODUCT
           </button>
         </div>
@@ -446,7 +447,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
                   </div>
                 </div>
                 <button className="save-btn" onClick={() => openSaveConfirm('add')}>
-                  <img src="/add_product_button.png" alt="" className="save-icon-img" /> SAVE PRODUCT
+                  <img src={ADD_PRODUCT_BUTTON_ICON} alt="" className="save-icon-img" /> SAVE PRODUCT
                 </button>
               </div>
             </div>
@@ -502,7 +503,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
                   </div>
                 </div>
                 <button className="save-btn save-edit" onClick={() => openSaveConfirm('edit')}>
-                  <img src="/add_product_button.png" alt="" className="save-icon-img" /> SAVE EDIT
+                  <img src={ADD_PRODUCT_BUTTON_ICON} alt="" className="save-icon-img" /> SAVE EDIT
                 </button>
               </div>
             </div>
