@@ -57,6 +57,7 @@ const mapProductCategoryForPie = (type) => {
 const mapProductCategoryForMostSold = (type) => {
   const t = normalizeText(type)
   if (t === 'meat') return 'Meat'
+  if (t === 'fish' || t === 'seafood') return 'Fish'
   if (t === 'vegetables' || t === 'vegetable') return 'Vegetable'
   if (t === 'drinks' || t === 'drink') return 'Drinks'
   if (t === 'others' || t === 'other') return 'Others'
@@ -571,7 +572,7 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
   }, [filteredPayments, orderItems])
 
   const categorizedMostSold = useMemo(() => {
-    const order = ['Meat', 'Vegetable', 'Drinks', 'Others']
+    const order = ['Meat', 'Fish', 'Vegetable', 'Drinks', 'Others']
     const grouped = mostSoldProducts.reduce((acc, item) => {
       const key = item.category || 'Others'
       acc[key] = acc[key] || []

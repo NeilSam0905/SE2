@@ -13,6 +13,7 @@ const normalizeText = (value) => String(value || '').trim().toLowerCase()
 const normalizeProductType = (raw) => {
   const t = normalizeText(raw)
   if (t === 'meat') return 'Meat'
+  if (t === 'fish' || t === 'seafood') return 'Fish'
   if (t === 'vegetable' || t === 'vegetables') return 'Vegetable'
   if (t === 'drinks' || t === 'drink') return 'Drinks'
   if (t === 'others' || t === 'other') return 'Others'
@@ -22,6 +23,7 @@ const normalizeProductType = (raw) => {
 
 const PRODUCT_TYPE_OPTIONS = [
   { key: 'Meat', label: 'Meat' },
+  { key: 'Fish', label: 'Fish' },
   { key: 'Vegetable', label: 'Vegetable' },
   { key: 'Drinks', label: 'Drinks' },
   { key: 'Others', label: 'Others' },
@@ -210,6 +212,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
   const categorizedProducts = useMemo(() => {
     const order = [
       { key: 'Meat', label: 'Meat' },
+      { key: 'Fish', label: 'Fish' },
       { key: 'Vegetable', label: 'Vegetable' },
       { key: 'Drinks', label: 'Drinks' },
       { key: 'Others', label: 'Others' },

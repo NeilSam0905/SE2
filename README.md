@@ -43,5 +43,4 @@ Supabase is used as the backend (users, orders, payments).
    - `VITE_SUPABASE_ANON_KEY`
 
 Notes:
-- The app uses `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` when present.
-- If not provided, it falls back to the existing hardcoded values in `src/supabaseClient.js`.
+- These env vars are required. The Supabase client in `src/lib/supabaseClient.js` will throw an error if they are missing.
