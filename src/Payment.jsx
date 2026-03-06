@@ -4,7 +4,6 @@ import ConfirmModal from './elements/ConfirmModal'
 import './styles/Payment.css'
 import { supabase, getPublicStorageUrl, PRODUCT_IMAGE_BUCKET } from './lib/supabaseClient'
 import { formatMoney } from './utils/numberFormat'
-import { isCompletedStatus } from './data/orders'
 
 const TAX_RATE = 0.1
 const DISCOUNT_RATE = 0.2
@@ -18,7 +17,10 @@ const isPaidStatus = (value) => {
 
 const coerceNumber = (raw) => {
   if (raw === null || raw === undefined) return NaN
-  const s = String(raw).replace(/,/g, '').trim()
+  const s = String(raw)
+    .replace(/,/g, '')
+    .replace(/[^0-9.-]/g, '')
+    .trim()
   if (!s) return NaN
   const n = Number(s)
   return Number.isFinite(n) ? n : NaN
@@ -87,6 +89,15 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
     if (!isCash) return 0
     if (!Number.isFinite(amountReceivedNum)) return 0
     return amountReceivedNum - total
+  }, [amountReceivedNum, isCash, order, total])
+
+  const changeDisplay = useMemo(() => {
+    if (!order) return { value: 0, negative: false }
+    if (!isCash) return { value: 0, negative: false }
+    if (!Number.isFinite(amountReceivedNum)) return { value: 0, negative: false }
+    const delta = amountReceivedNum - total
+    if (delta >= 0) return { value: delta, negative: false }
+    return { value: Math.abs(delta), negative: true }
   }, [amountReceivedNum, isCash, order, total])
 
   const canComplete = useMemo(() => {
@@ -163,11 +174,6 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
       if (!data) {
         setNotFoundOrderId(idNum)
         setShowOrderNotFoundModal(true)
-        return
-      }
-
-      if (!isCompletedStatus(data.status)) {
-        setError(`Order #${idNum} is not completed yet.`)
         return
       }
 
@@ -338,7 +344,7 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
             </div>
 
             <div className="payment-items-card">
-              {!order ? <div className="payment-empty">Search an unpaid, completed order to start.</div> : null}
+              {!order ? <div className="payment-empty">Search an unpaid order to start.</div> : null}
               {order ? (
                 <div className="payment-items-scroll">
                   {(order.items || []).map((it) => (
@@ -407,7 +413,9 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
 
               <div className="payment-change-row">
                 <div className="payment-change-label">Change</div>
-                <div className="payment-change-value">₱ {formatMoney(Math.max(0, change))}</div>
+                <div className={`payment-change-value ${changeDisplay.negative ? 'negative' : ''}`}>
+                  {changeDisplay.negative ? '-₱' : '₱'} {formatMoney(changeDisplay.value)}
+                </div>
               </div>
 
               <div className="payment-actions">
@@ -420,7 +428,7 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
                   onClick={processPayment}
                   disabled={!canComplete}
                 >
-                  Complete Order
+                  Complete Payment
                 </button>
               </div>
 

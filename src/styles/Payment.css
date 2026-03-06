@@ -271,6 +271,10 @@
   font-weight: 900;
 }
 
+.payment-change-value.negative {
+  color: #d90000;
+}
+
 .payment-actions {
   display: flex;
   justify-content: space-between;
@@ -292,6 +296,7 @@
 
 .payment-btn.cancel {
   background: #fff;
+  color: #000;
 }
 
 .payment-btn.complete {
@@ -366,11 +371,11 @@
 .payment-modal-cancel {
   border: 2px solid #000;
   border-radius: 999px;
-  background: #fff;
+  background: #000;
   padding: 0.55rem 1.4rem;
   font-weight: 900;
   cursor: pointer;
-  color: #000;
+  color: #fff;
 }
 
 .payment-modal-close {

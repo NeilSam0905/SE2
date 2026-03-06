@@ -186,9 +186,36 @@ export async function fetchOrdersWithItems({ completed }) {
 
 export async function markOrderCompleted(orderId) {
   const nowIso = new Date().toISOString()
+
+  // If the order was already paid before completion, do not overwrite it.
+  const { data: existingOrder, error: fetchError } = await supabase
+    .from('orders')
+    .select('paymentstatus')
+    .eq('orderID', orderId)
+    .maybeSingle()
+
+  if (fetchError) throw fetchError
+
+  let paid = isPaidStatus(existingOrder?.paymentstatus)
+
+  if (!paid) {
+    const { data: paymentRows, error: paymentsError } = await supabase
+      .from('payments')
+      .select('paymentID, totalAmount')
+      .eq('orderID', orderId)
+      .limit(1)
+
+    if (paymentsError) throw paymentsError
+
+    const row = Array.isArray(paymentRows) ? paymentRows[0] : paymentRows
+    paid = Boolean(row && Number(row?.totalAmount || 0) > 0)
+  }
+
+  const nextPaymentStatus = paid ? 'Paid' : (existingOrder?.paymentstatus ?? 'Unpaid')
+
   const { error } = await supabase
     .from('orders')
-    .update({ status: 'Completed', completeTimestamp: nowIso, paymentstatus: 'Unpaid' })
+    .update({ status: 'Completed', completeTimestamp: nowIso, paymentstatus: nextPaymentStatus })
     .eq('orderID', orderId)
 
   if (error) throw error

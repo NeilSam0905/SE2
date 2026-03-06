@@ -9,6 +9,7 @@ const PRODUCTS_CACHE_KEY = 'products_cache_v1'
 const PRODUCTS_CACHE_MAX_AGE_MS = 5 * 60 * 1000
 
 const normalizeText = (value) => String(value || '').trim().toLowerCase()
+const normalizeKey = (value) => normalizeText(value).replace(/\s+/g, ' ')
 
 const normalizeProductType = (raw) => {
   const t = normalizeText(raw)
@@ -65,6 +66,18 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
   const [editingProductImageFile, setEditingProductImageFile] = useState(null)
 
   const [products, setProducts] = useState([])
+
+  const duplicateNewProduct = useMemo(() => {
+    const key = normalizeKey(newProduct.name)
+    if (!key) return null
+    return products.find((p) => normalizeKey(p.name) === key) || null
+  }, [newProduct.name, products])
+
+  const duplicateEditProduct = useMemo(() => {
+    const key = normalizeKey(editingProduct?.name)
+    if (!key || !editingProduct?.id) return null
+    return products.find((p) => p.id !== editingProduct.id && normalizeKey(p.name) === key) || null
+  }, [editingProduct?.id, editingProduct?.name, products])
 
   // --- 1. READ (Fetch from Supabase) ---
   const fetchProducts = async () => {
@@ -138,8 +151,29 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
 
   // --- 3. CREATE PRODUCT (With dynamic ID fix) ---
   const handleSaveNewProduct = async () => {
+    const trimmedName = String(newProduct.name || '').trim()
+    if (trimmedName) {
+      const { data: existingEq, error: existingEqError } = await supabase
+        .from('products')
+        .select('productID')
+        .eq('productName', trimmedName)
+        .limit(1)
+
+      if (existingEqError) throw existingEqError
+      if (existingEq?.length) throw new Error('Product already exists in the menu.')
+
+      const { data: existingI, error: existingIError } = await supabase
+        .from('products')
+        .select('productID')
+        .ilike('productName', trimmedName)
+        .limit(1)
+
+      if (existingIError) throw existingIError
+      if (existingI?.length) throw new Error('Product already exists in the menu.')
+    }
+
     const insertPayload = {
-      productName: newProduct.name,
+      productName: trimmedName,
       price: Number(newProduct.price),
       status: newProduct.status,
       type: newProduct.type,
@@ -172,10 +206,23 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
 
   // --- 4. UPDATE PRODUCT (Edit) ---
   const handleSaveEdit = async () => {
+    const trimmedName = String(editingProduct?.name || '').trim()
+    if (trimmedName) {
+      const { data: existingI, error: existingIError } = await supabase
+        .from('products')
+        .select('productID')
+        .ilike('productName', trimmedName)
+        .neq('productID', editingProduct.id)
+        .limit(1)
+
+      if (existingIError) throw existingIError
+      if (existingI?.length) throw new Error('Another product with the same name already exists in the menu.')
+    }
+
     const { error } = await supabase
       .from('products')
       .update({
-        productName: editingProduct.name,
+        productName: trimmedName,
         price: Number(editingProduct.price),
         status: editingProduct.status,
         type: editingProduct.type,
@@ -254,6 +301,30 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
   const openSaveConfirm = (mode) => setConfirmState({ open: true, mode })
   const closeSaveConfirm = () => setConfirmState({ open: false, mode: null })
 
+  const handleRequestAddSave = () => {
+    if (duplicateNewProduct) {
+      setResultState({
+        open: true,
+        title: 'Duplicate Product',
+        message: `"${String(newProduct.name || '').trim() || 'This product'}" already exists in the menu.`,
+      })
+      return
+    }
+    openSaveConfirm('add')
+  }
+
+  const handleRequestEditSave = () => {
+    if (duplicateEditProduct) {
+      setResultState({
+        open: true,
+        title: 'Duplicate Product',
+        message: `"${String(editingProduct?.name || '').trim() || 'This product'}" already exists in the menu.`,
+      })
+      return
+    }
+    openSaveConfirm('edit')
+  }
+
   const runConfirmedSave = async () => {
     try {
       if (confirmState.mode === 'add') {
@@ -301,10 +372,10 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
   }
 
   const saveDisabled = useMemo(() => {
-    if (confirmState.mode === 'add') return !newProduct.name?.trim() || !newProduct.price || Number(newProduct.price) <= 0
-    if (confirmState.mode === 'edit') return !editingProduct?.name?.trim() || !editingProduct?.price || Number(editingProduct.price) <= 0
+    if (confirmState.mode === 'add') return !newProduct.name?.trim() || !newProduct.price || Number(newProduct.price) <= 0 || Boolean(duplicateNewProduct)
+    if (confirmState.mode === 'edit') return !editingProduct?.name?.trim() || !editingProduct?.price || Number(editingProduct.price) <= 0 || Boolean(duplicateEditProduct)
     return false
-  }, [confirmState.mode, editingProduct, newProduct.name, newProduct.price])
+  }, [confirmState.mode, duplicateEditProduct, duplicateNewProduct, editingProduct, newProduct.name, newProduct.price])
 
   const buildEditSummary = () => {
     if (!originalProduct || !editingProduct) return 'No changes detected.'
@@ -449,7 +520,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
                     <input type="number" min="0" step="0.01" value={newProduct.price} onChange={(e) => setNewProduct({...newProduct, price: e.target.value})} placeholder="150.00" />
                   </div>
                 </div>
-                <button className="save-btn" onClick={() => openSaveConfirm('add')}>
+                <button className="save-btn" onClick={handleRequestAddSave}>
                   <img src={ADD_PRODUCT_BUTTON_ICON} alt="" className="save-icon-img" /> SAVE PRODUCT
                 </button>
               </div>
@@ -505,7 +576,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
                     <input type="number" min="0" step="0.01" value={editingProduct.price} onChange={(e) => setEditingProduct({...editingProduct, price: e.target.value})} placeholder="150.00" />
                   </div>
                 </div>
-                <button className="save-btn save-edit" onClick={() => openSaveConfirm('edit')}>
+                <button className="save-btn save-edit" onClick={handleRequestEditSave}>
                   <img src={ADD_PRODUCT_BUTTON_ICON} alt="" className="save-icon-img" /> SAVE EDIT
                 </button>
               </div>

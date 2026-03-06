@@ -162,6 +162,9 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
   const [trendFilter, setTrendFilter] = useState('Daily')
   const [showTrendFilter, setShowTrendFilter] = useState(false)
 
+  const [mostSoldCategoryFilter, setMostSoldCategoryFilter] = useState('ALL')
+  const [showMostSoldFilter, setShowMostSoldFilter] = useState(false)
+
   const refreshTimerRef = useRef(null)
   const getPrimaryRange = useMemo(() => {
     const anchor = selectedDate ? new Date(selectedDate) : new Date()
@@ -561,12 +564,23 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
       distinctOrdersByProduct.get(name).add(oi.orderID)
     })
 
-    // Display: top 5 by revenue.
+    // Display: top 5 by number of orders (then revenue).
     const list = Array.from(byProduct.values())
       .map((p) => ({ ...p, distinctOrders: distinctOrdersByProduct.get(p.name)?.size || 0 }))
-      .sort((a, b) => b.revenue - a.revenue)
+      .sort((a, b) => {
+        const ao = Number(a.distinctOrders || 0)
+        const bo = Number(b.distinctOrders || 0)
+        if (bo !== ao) return bo - ao
+        return Number(b.revenue || 0) - Number(a.revenue || 0)
+      })
       .slice(0, 5)
-      .map((p) => ({ category: p.category, name: p.name, image: p.image || null, orders: p.distinctOrders || p.orders, revenue: Math.round(p.revenue) }))
+      .map((p) => ({
+        category: p.category,
+        name: p.name,
+        image: p.image || null,
+        orders: p.distinctOrders,
+        revenue: Math.round(p.revenue),
+      }))
 
     return list
   }, [filteredPayments, orderItems])
@@ -584,7 +598,12 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
       .map((k) => ({ category: k, items: grouped[k] }))
   }, [mostSoldProducts])
 
-  const hasMostSold = categorizedMostSold.length > 0
+  const filteredCategorizedMostSold = useMemo(() => {
+    if (mostSoldCategoryFilter === 'ALL') return categorizedMostSold
+    return categorizedMostSold.filter((g) => g.category === mostSoldCategoryFilter)
+  }, [categorizedMostSold, mostSoldCategoryFilter])
+
+  const hasMostSold = filteredCategorizedMostSold.length > 0
 
   const trendXAxisLabel = useMemo(() => {
     switch (trendFilter) {
@@ -1029,6 +1048,34 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
             <div className="dashboard-section most-sold-section">
               <div className="most-sold-header-row">
                 <h2>Most Sold Item</h2>
+                <div className="prep-filter-row prep-filter-row--top">
+                  <button
+                    type="button"
+                    className="prep-filter-btn"
+                    onClick={() => setShowMostSoldFilter((v) => !v)}
+                    aria-label="Most sold category filter"
+                  >
+                    {mostSoldCategoryFilter} ▼
+                  </button>
+                  {showMostSoldFilter ? (
+                    <div className="prep-filter-menu" role="menu" aria-label="Most sold category filter menu">
+                      {['ALL', 'Meat', 'Fish', 'Vegetable', 'Drinks', 'Others'].map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          className={`prep-filter-item ${mostSoldCategoryFilter === opt ? 'active' : ''}`}
+                          onClick={() => {
+                            setMostSoldCategoryFilter(opt)
+                            setShowMostSoldFilter(false)
+                          }}
+                          role="menuitem"
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
               </div>
               <div className="most-sold-table-header">
                 <span>Product</span>
@@ -1037,7 +1084,7 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
               </div>
               <div className="most-sold-list">
                 {hasMostSold ? (
-                  categorizedMostSold.map((group) => (
+                  filteredCategorizedMostSold.map((group) => (
                     <div key={group.category} className="most-sold-category">
                       <div className="most-sold-category-title">{group.category}</div>
                       {group.items.map((product, index) => (

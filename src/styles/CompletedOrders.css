@@ -93,6 +93,15 @@
   box-shadow: 0 14px 24px rgba(0, 0, 0, 0.18);
 }
 
+.completed-orders-page .order-card.active {
+  background: #fbfbfb;
+  z-index: 3;
+  transform: translateY(-3px);
+  box-shadow:
+    0 0 0 4px rgba(106, 27, 26, 0.35),
+    0 16px 26px rgba(0, 0, 0, 0.22);
+}
+
 .completed-orders-page .order-link {
   color: #d90000;
   font-weight: 900;

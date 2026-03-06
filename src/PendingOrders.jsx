@@ -188,12 +188,14 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
               <div className="details-items">
                 {selectedOrder.items.map((it) => (
                   <div key={it.id} className="details-item">
-                    <img
-                      className="item-image"
-                      src={it.image || '/product1.jpg'}
-                      alt={it.name}
-                      loading="lazy"
-                    />
+                    <div className={`item-image-wrap ${it.served ? 'served' : 'unserved'}`}>
+                      <img
+                        className="item-image"
+                        src={it.image || '/product1.jpg'}
+                        alt={it.name}
+                        loading="lazy"
+                      />
+                    </div>
                     <div className="item-main">
                       <div className="item-name">{it.name}</div>
                       <div className="item-qty">Qty. {it.qty}</div>

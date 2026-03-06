@@ -3,7 +3,7 @@
 }
 
 .pending-orders-page .page-content {
-  padding: 1.5rem 2rem;
+  padding: 1rem 2rem;
   display: flex;
   flex-direction: column;
 }
@@ -14,6 +14,7 @@
   background: #f5e6d3;
   flex: 1;
   min-height: 0;
+  height: 100%;
   align-items: stretch;
 }
 
@@ -82,7 +83,12 @@
 }
 
 .pending-orders-page .order-card.active {
-  outline: 3px solid rgba(106, 27, 26, 0.2);
+  background: #fbfbfb;
+  z-index: 3;
+  transform: translateY(-3px);
+  box-shadow:
+    0 0 0 4px rgba(106, 27, 26, 0.35),
+    0 16px 26px rgba(0, 0, 0, 0.22);
 }
 
 .pending-orders-page .order-link {
@@ -136,7 +142,7 @@
   width: 360px;
   border: 3px solid #000;
   border-radius: 0;
-  padding: 1rem 1rem 1.5rem;
+  padding: 0.75rem 0.75rem 1rem;
   background: #fff;
   display: flex;
   flex-direction: column;
@@ -154,7 +160,7 @@
   cursor: pointer;
   font-weight: 800;
   color: #000;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
   align-self: flex-start;
   margin-left: -0.25rem;
   padding-left: 0;
@@ -178,7 +184,7 @@
   font-weight: 700;
   color: #000;
   margin-top: 0.25rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
 }
 
 .pending-orders-page .details-items {
@@ -192,16 +198,49 @@
   display: grid;
   grid-template-columns: 54px 1fr auto;
   gap: 0.75rem;
-  padding: 0.65rem 0;
+  padding: 0.45rem 0;
   border-bottom: 1px solid rgba(0, 0, 0, 0.15);
 }
 
-.pending-orders-page .item-image {
+.pending-orders-page .item-image-wrap {
   width: 54px;
   height: 40px;
   border-radius: 6px;
   border: 1px solid rgba(0, 0, 0, 0.2);
   background: #e6e6e6;
+  overflow: hidden;
+  position: relative;
+}
+
+.pending-orders-page .item-image-wrap::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pending-orders-page .item-image-wrap.served::after {
+  background: #1f9d1f;
+  opacity: 0.35;
+}
+
+.pending-orders-page .item-image-wrap.unserved::after {
+  background: #c77700;
+  opacity: 0.35;
+}
+
+.pending-orders-page .item-image-wrap.served {
+  border-color: #1f9d1f;
+}
+
+.pending-orders-page .item-image-wrap.unserved {
+  border-color: #c77700;
+}
+
+.pending-orders-page .item-image {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
   display: block;
 }
@@ -249,9 +288,9 @@
 }
 
 .pending-orders-page .details-footer {
-  margin-top: 0.75rem;
+  margin-top: 0.5rem;
   border-top: 2px solid rgba(0, 0, 0, 0.25);
-  padding-top: 0.75rem;
+  padding-top: 0.5rem;
 }
 
 .pending-orders-page .details-row {
@@ -269,10 +308,10 @@
 
 .pending-orders-page .all-served-btn {
   width: 100%;
-  margin-top: 0.75rem;
+  margin-top: 0.5rem;
   border: 2px solid #000;
   border-radius: 999px;
-  padding: 0.75rem 1rem;
+  padding: 0.65rem 1rem;
   font-weight: 900;
   cursor: pointer;
   background: #fff;
