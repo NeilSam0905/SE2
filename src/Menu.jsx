@@ -274,7 +274,12 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
 
     return order
       .filter((group) => grouped[group.key] && grouped[group.key].length)
-      .map((group) => ({ label: group.label, items: grouped[group.key] }))
+      .map((group) => ({
+        label: group.label,
+        items: [...grouped[group.key]].sort((a, b) =>
+          String(a.name || '').localeCompare(String(b.name || ''))
+        ),
+      }))
   }, [filteredProducts])
 
   // --- UI HANDLERS ---
