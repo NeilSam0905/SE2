@@ -130,6 +130,14 @@ function Navbar({
             Menu
           </button>
         ) : null}
+        {isStaff ? (
+          <button
+            className={`nav-tab ${activePage === 'payment' ? 'active' : ''}`}
+            onClick={() => onNavigate && onNavigate('payment')}
+          >
+            Payment
+          </button>
+        ) : null}
         <button 
           className={`nav-tab ${activePage === 'pending' ? 'active' : ''}`}
           onClick={() => onNavigate && onNavigate('pending')}
@@ -172,6 +180,14 @@ function Navbar({
                   onClick={() => { onNavigate && onNavigate('menu'); setShowMenu(false) }}
                 >
                   Menu
+                </button>
+              ) : null}
+              {isStaff ? (
+                <button
+                  className={`mobile-link ${activePage === 'payment' ? 'active' : ''}`}
+                  onClick={() => { onNavigate && onNavigate('payment'); setShowMenu(false) }}
+                >
+                  Payment
                 </button>
               ) : null}
               <button 

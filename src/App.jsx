@@ -6,6 +6,7 @@ import Menu from './Menu.jsx'
 import PendingOrders from './PendingOrders.jsx'
 import CompletedOrders from './CompletedOrders.jsx'
 import ManageUsers from './ManageUsers.jsx'
+import Payment from './Payment.jsx'
 import { supabase } from './lib/supabaseClient'
 
 function App() {
@@ -152,7 +153,7 @@ function App() {
 
   const handleNavigate = (page) => {
     if ((userRole || '').toLowerCase() === 'staff') {
-      const allowed = new Set(['pending', 'completed'])
+      const allowed = new Set(['payment', 'pending', 'completed'])
       setCurrentPage(allowed.has(page) ? page : 'pending')
       return
     }
@@ -164,6 +165,8 @@ function App() {
     switch (currentPage) {
       case 'menu':
         return <Menu onLogout={handleLogout} onNavigate={handleNavigate} userRole={userRole} userName={userName} />
+      case 'payment':
+        return <Payment onLogout={handleLogout} onNavigate={handleNavigate} userRole={userRole} userName={userName} />
       case 'pending':
         return <PendingOrders onLogout={handleLogout} onNavigate={handleNavigate} userRole={userRole} userName={userName} />
       case 'completed':
