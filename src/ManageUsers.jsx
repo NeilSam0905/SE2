@@ -18,7 +18,17 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
   const [originalUser, setOriginalUser] = useState(null)
   const [newUser, setNewUser] = useState({ name: '', role: 'Staff', active: true, password: '' })
 
+  const [duplicateUserModal, setDuplicateUserModal] = useState({ open: false, name: '' })
+
   const [users, setUsers] = useState([])
+
+  const normalizeName = (value) => String(value || '').trim().replace(/\s+/g, ' ').toLowerCase()
+
+  const isDuplicateUserName = (candidateName) => {
+    const candidateKey = normalizeName(candidateName)
+    if (!candidateKey) return false
+    return users.some((u) => normalizeName(u?.name) === candidateKey)
+  }
 
   const getStatusText = (u) => String(u?.status || '').trim().toLowerCase()
 
@@ -86,6 +96,31 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
     setShowAddModal(true)
   }
 
+  const handleAttemptAddUserSave = async () => {
+    const proposedName = String(newUser.name || '').trim()
+    if (!proposedName) return
+
+    // Fast local check (covers most cases without a network call).
+    if (isDuplicateUserName(proposedName)) {
+      setDuplicateUserModal({ open: true, name: proposedName })
+      return
+    }
+
+    // Defensive server-side check (prevents duplicates if the list is stale).
+    try {
+      const { data, error } = await supabase.from('users').select('id, name').ilike('name', proposedName).limit(1)
+      if (!error && (data || []).length) {
+        setDuplicateUserModal({ open: true, name: proposedName })
+        return
+      }
+    } catch (error) {
+      // If the check fails, we still allow the user to proceed to the normal confirmation.
+      console.error('Duplicate user check failed:', error)
+    }
+
+    openSaveConfirm('add')
+  }
+
   const handleOpenEdit = (id) => {
     const u = users.find((x) => x.id === id)
     if (!u) return
@@ -121,6 +156,18 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
         // 'Inactive' means enabled but logged out; 'Deactivated' blocks login.
         status: newUser.active ? 'Inactive' : 'Deactivated',
         password: String(newUser.password || '').trim(),
+      }
+
+      // Re-check duplicates right before insert (guards against race conditions).
+      try {
+        const { data, error } = await supabase.from('users').select('id, name').ilike('name', trimmed.name).limit(1)
+        if (!error && (data || []).length) {
+          closeSaveConfirm()
+          setDuplicateUserModal({ open: true, name: trimmed.name })
+          return
+        }
+      } catch (error) {
+        console.error('Duplicate user re-check failed:', error)
       }
 
       try {
@@ -453,7 +500,7 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
                 <button
                   className="save-btn"
                   type="button"
-                  onClick={() => openSaveConfirm('add')}
+                  onClick={handleAttemptAddUserSave}
                   disabled={addSaveDisabled}
                   style={addSaveDisabled ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
                 >
@@ -554,6 +601,16 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
           if ((confirmState.mode === 'add' && addSaveDisabled) || (confirmState.mode === 'edit' && editSaveDisabled)) return
           runConfirmedSave()
         }}
+      />
+
+      <ConfirmModal
+        open={duplicateUserModal.open}
+        title="User already added"
+        message={duplicateUserModal.name ? `A user named "${duplicateUserModal.name}" already exists.` : 'This user already exists.'}
+        showCancel={false}
+        confirmText="OK"
+        onCancel={() => setDuplicateUserModal({ open: false, name: '' })}
+        onConfirm={() => setDuplicateUserModal({ open: false, name: '' })}
       />
     </div>
   )
