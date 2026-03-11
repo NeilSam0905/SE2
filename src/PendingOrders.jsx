@@ -147,6 +147,7 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
                 >
                   <div className="order-card-order">
                     <span className="order-link">Order #{o.id}</span>
+                    {o.orderType ? <span className="order-card-type">{o.orderType}</span> : null}
                   </div>
                   <div className="order-card-total">₱ {formatMoney(o.total)}</div>
                   <div className="order-card-status">
@@ -179,6 +180,9 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
 
               <div className="details-title">Order Details:</div>
               <div className="details-order">Order #{selectedOrder.id}</div>
+              {selectedOrder.orderType ? (
+                <div className="details-order-type">Order Type: {selectedOrder.orderType}</div>
+              ) : null}
               <div className="details-status">
                 {selectedOrder.servedCount === selectedOrder.totalCount
                   ? 'Status: Done'

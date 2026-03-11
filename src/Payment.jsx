@@ -5,7 +5,6 @@ import './styles/Payment.css'
 import { supabase, getPublicStorageUrl, PRODUCT_IMAGE_BUCKET } from './lib/supabaseClient'
 import { formatMoney } from './utils/numberFormat'
 
-const TAX_RATE = 0.1
 const DISCOUNT_RATE = 0.2
 const GCashRefPattern = /^\d{10,15}$/
 
@@ -75,9 +74,8 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
     )
   }, [order])
 
-  const tax = useMemo(() => subtotal * TAX_RATE, [subtotal])
   const discount = useMemo(() => (discountApplied ? subtotal * DISCOUNT_RATE : 0), [discountApplied, subtotal])
-  const total = useMemo(() => subtotal + tax - discount, [discount, subtotal, tax])
+  const total = useMemo(() => subtotal - discount, [discount, subtotal])
 
   const amountReceivedNum = useMemo(() => coerceNumber(amountReceived), [amountReceived])
 
@@ -243,7 +241,7 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
       const payload = {
         orderID: order.id,
         subtotal: Number(subtotal || 0),
-        tax: Number(tax || 0),
+        tax: 0,
         discount: Number(discount || 0),
         totalAmount: Number(total || 0),
         paymentMethod: isGcash ? 'GCash' : 'Cash',
@@ -381,10 +379,6 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
               <div className="payment-summary-divider" />
 
               <div className="payment-summary-math">
-                <div className="payment-math-row">
-                  <span className="payment-math-label">Tax (10%)</span>
-                  <span className="payment-math-value">₱ {formatMoney(tax)}</span>
-                </div>
                 <div className="payment-math-row">
                   <span className="payment-math-label">Discount (PWD)</span>
                   <span className={`payment-math-value ${discountApplied ? 'negative' : ''}`}>

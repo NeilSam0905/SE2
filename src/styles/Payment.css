@@ -198,8 +198,16 @@
 
 .payment-summary-line-name {
   overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 0.82rem;
+  word-break: break-word;
+  min-width: 0;
+}
+
+.payment-summary-line-amount {
   white-space: nowrap;
+  flex-shrink: 0;
+  font-size: 0.82rem;
+  font-weight: 800;
 }
 
 .payment-summary-total-row {

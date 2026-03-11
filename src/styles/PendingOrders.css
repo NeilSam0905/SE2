@@ -98,6 +98,14 @@
   text-decoration: underline;
 }
 
+.pending-orders-page .order-card-type {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #6a1b1a;
+  margin-top: 0.25rem;
+}
+
 .pending-orders-page .order-card-total {
   font-size: 1.5rem;
   font-weight: 700;
@@ -178,6 +186,13 @@
   color: #d90000;
   text-decoration: underline;
   margin-top: 0.4rem;
+}
+
+.pending-orders-page .details-order-type {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #6a1b1a;
+  margin-top: 0.15rem;
 }
 
 .pending-orders-page .details-status {

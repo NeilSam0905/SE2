@@ -4,7 +4,7 @@ import Navbar from './elements/Navbar'
 import { supabase } from './lib/supabaseClient'
 import { getPublicStorageUrl, PRODUCT_IMAGE_BUCKET } from './lib/supabaseClient'
 import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { formatInteger } from './utils/numberFormat'
+import { formatInteger, formatMoney } from './utils/numberFormat'
 import { subscribeToOrderRelatedChanges } from './data/orders'
 
 const normalizeText = (value) => String(value || '').toLowerCase().replace(/[^a-z]/g, '')
@@ -233,7 +233,7 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
   const fetchRealtimeCards = useCallback(async () => {
     const { data, error } = await supabase
       .from('orders')
-      .select('orderID, status, orderTimestamp, order_items(quantity, products(productName))')
+      .select('orderID, status, orderType, orderTimestamp, order_items(quantity, products(productName))')
       .order('orderTimestamp', { ascending: false })
       .limit(25)
 
@@ -246,9 +246,12 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
     const toCard = (row, label) => {
       if (!row) return null
       const stamp = parseStamp(row?.orderTimestamp)
+      const rawType = String(row?.orderType || '').toLowerCase().replace(/[^a-z]/g, '')
+      const orderType = rawType === 'takeout' ? 'Take-Out' : rawType === 'dinein' ? 'Dine-In' : null
       return {
         label,
         orderID: row.orderID,
+        orderType,
         description: buildOrderDescription(row.order_items),
         time: stamp ? formatMilitaryTime(stamp) : '--:--',
       }
@@ -519,9 +522,9 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
     }
 
     const raw = [
-      { name: 'Food', value: toPct(totals.Food), color: '#5BC0BE' },
-      { name: 'Drinks', value: toPct(totals.Drinks), color: '#E07A5F' },
-      { name: 'Others', value: toPct(totals.Others), color: '#F2CC8F' },
+      { name: 'Food', value: toPct(totals.Food), amount: Math.round(totals.Food), color: '#5BC0BE' },
+      { name: 'Drinks', value: toPct(totals.Drinks), amount: Math.round(totals.Drinks), color: '#E07A5F' },
+      { name: 'Others', value: toPct(totals.Others), amount: Math.round(totals.Others), color: '#F2CC8F' },
     ]
 
     // Fix rounding to exactly 100 when possible.
@@ -543,6 +546,12 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
     const byProduct = new Map()
     const distinctOrdersByProduct = new Map()
 
+    // Build a map of orderID -> orderTimestamp for date tracking
+    const orderTimestampMap = new Map()
+    ;(filteredOrders || []).forEach((o) => {
+      if (o?.orderID != null) orderTimestampMap.set(o.orderID, o.orderTimestamp)
+    })
+
     ;(orderItems || []).forEach((oi) => {
       if (!paidOrders.has(oi?.orderID)) return
       const name = oi?.products?.productName || 'Item'
@@ -551,13 +560,24 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
       const image = buildProductImageUrl(oi?.products)
       const qty = Number(oi?.quantity || 0)
       const unit = Number(oi?.price ?? oi?.products?.price ?? 0)
+      const currentPrice = Number(oi?.products?.price ?? 0)
       const revenue = qty * unit
 
-      if (!byProduct.has(name)) byProduct.set(name, { category, name, image: image || null, orders: 0, revenue: 0 })
+      if (!byProduct.has(name)) {
+        byProduct.set(name, { category, name, image: image || null, orders: 0, revenue: 0, unitPrice: unit, currentPrice, lastOrderDate: null })
+      }
       const agg = byProduct.get(name)
       agg.orders += qty
       agg.revenue += revenue
       if (!agg.image && image) agg.image = image
+
+      // Track the most recent order date for this product
+      const ts = orderTimestampMap.get(oi?.orderID)
+      if (ts) {
+        const d = parseStamp(ts)
+        if (d && (!agg.lastOrderDate || d > agg.lastOrderDate)) agg.lastOrderDate = d
+      }
+
       byProduct.set(name, agg)
 
       if (!distinctOrdersByProduct.has(name)) distinctOrdersByProduct.set(name, new Set())
@@ -580,10 +600,14 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
         image: p.image || null,
         orders: p.distinctOrders,
         revenue: Math.round(p.revenue),
+        unitPrice: p.unitPrice,
+        currentPrice: p.currentPrice,
+        priceChanged: Math.abs((p.unitPrice || 0) - (p.currentPrice || 0)) > 0.01,
+        lastOrderDate: p.lastOrderDate,
       }))
 
     return list
-  }, [filteredPayments, orderItems])
+  }, [filteredPayments, filteredOrders, orderItems])
 
   const categorizedMostSold = useMemo(() => {
     const order = ['Meat', 'Fish', 'Vegetable', 'Drinks', 'Others']
@@ -1011,7 +1035,7 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
                             ))}
                           </Pie>
                           <Tooltip
-                            formatter={(value) => `${value}%`}
+                            formatter={(value, name, entry) => [`${value}% (₱${formatInteger(entry.payload.amount)})`, name]}
                             contentStyle={{ backgroundColor: '#fff', border: '2px solid #000', borderRadius: '8px' }}
                           />
                         </PieChart>
@@ -1096,7 +1120,20 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
                               alt={product.name}
                               loading="lazy"
                             />
-                            <span className="product-name">{product.name}</span>
+                            <div className="product-info-text">
+                              <span className="product-name">{product.name}</span>
+                              <div className="product-price-row">
+                                <span className="product-unit-price">₱ {formatMoney(product.unitPrice)}</span>
+                                {product.priceChanged && (
+                                  <span
+                                    className="product-price-changed"
+                                    title={`Price has changed since ${product.lastOrderDate ? product.lastOrderDate.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) : 'previous orders'}`}
+                                  >
+                                    ⚠ Changed
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                           </div>
                           <span className="product-orders">{formatInteger(product.orders)}</span>
                           <span className="product-revenue">₱{formatInteger(product.revenue)}</span>
@@ -1176,6 +1213,9 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
                     <div className="order-number">
                       Order {realtimeCards.completed?.orderID ?? '--'} - Completed
                     </div>
+                    {realtimeCards.completed?.orderType && (
+                      <div className="order-type-badge">{realtimeCards.completed.orderType}</div>
+                    )}
                     <div className="order-description">{realtimeCards.completed?.description || '—'}</div>
                   </div>
                   <div className="order-stamp">{realtimeCards.completed?.time || '--:--'}</div>
@@ -1186,6 +1226,9 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
                     <div className="order-number">
                       Order {realtimeCards.pending?.orderID ?? '--'} - Preparing
                     </div>
+                    {realtimeCards.pending?.orderType && (
+                      <div className="order-type-badge">{realtimeCards.pending.orderType}</div>
+                    )}
                     <div className="order-description">{realtimeCards.pending?.description || '—'}</div>
                   </div>
                   <div className="order-stamp">{realtimeCards.pending?.time || '--:--'}</div>
