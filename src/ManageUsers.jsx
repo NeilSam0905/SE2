@@ -20,6 +20,7 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
   const [newUser, setNewUser] = useState({ name: '', role: 'Staff', active: true, password: '' })
 
   const [duplicateUserModal, setDuplicateUserModal] = useState({ open: false, name: '' })
+  const [samePasswordModal, setSamePasswordModal] = useState(false)
 
   const [users, setUsers] = useState([])
 
@@ -551,8 +552,7 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
                     placeholder="Leave blank to keep"
                   />
                 </div>
-                <div className="form-row">
-                  <div className="form-group">
+                <div className="form-group">
                     <label>ROLE</label>
                     <select
                       value={editingUser.role}
@@ -563,22 +563,23 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
                       <option value="Customer">Customer</option>
                     </select>
                   </div>
-                  <div className="form-group">
-                    <label>STATUS</label>
-                    <select
-                      value={editingUser.active ? 'Active' : 'Inactive'}
-                      onChange={(e) => setEditingUser({ ...editingUser, active: e.target.value === 'Active' })}
-                    >
-                      <option value="Active">Active</option>
-                      <option value="Inactive">Inactive</option>
-                    </select>
-                  </div>
-                </div>
 
                 <button
                   className="save-btn save-edit"
                   type="button"
-                  onClick={() => openSaveConfirm('edit')}
+                  onClick={async () => {
+                    const nextPw = String(editingUser.password || '').trim()
+                    if (nextPw && originalUser?.password) {
+                      try {
+                        const isSame = await bcrypt.compare(nextPw, originalUser.password)
+                        if (isSame) {
+                          setSamePasswordModal(true)
+                          return
+                        }
+                      } catch { /* proceed if compare fails */ }
+                    }
+                    openSaveConfirm('edit')
+                  }}
                   disabled={editSaveDisabled}
                   style={editSaveDisabled ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
                 >
@@ -620,6 +621,16 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
         confirmText="OK"
         onCancel={() => setDuplicateUserModal({ open: false, name: '' })}
         onConfirm={() => setDuplicateUserModal({ open: false, name: '' })}
+      />
+
+      <ConfirmModal
+        open={samePasswordModal}
+        title="Same Password"
+        message="Inputted Password is the same as the current password. Please enter a different password."
+        showCancel={false}
+        confirmText="OK"
+        onCancel={() => setSamePasswordModal(false)}
+        onConfirm={() => setSamePasswordModal(false)}
       />
     </div>
   )

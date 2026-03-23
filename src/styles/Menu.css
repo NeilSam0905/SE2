@@ -443,6 +443,54 @@
   color: #000;
 }
 
+.price-cell-hover {
+  position: relative;
+  cursor: default;
+}
+
+.price-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #3a2010;
+  color: #fff;
+  border-radius: 8px;
+  padding: 0.5rem 0.85rem;
+  white-space: nowrap;
+  z-index: 10;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.price-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #3a2010;
+}
+
+.price-cell-hover:hover .price-tooltip {
+  display: flex;
+}
+
+.price-tooltip-prev {
+  color: #ccc;
+  text-decoration: line-through;
+}
+
+.price-tooltip-curr {
+  color: #f4c27a;
+  font-weight: 700;
+}
+
 .action-cell {
   justify-content: flex-start;
   padding-left: 1rem;

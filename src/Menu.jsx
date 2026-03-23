@@ -66,6 +66,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
   const [editingProductImageFile, setEditingProductImageFile] = useState(null)
 
   const [products, setProducts] = useState([])
+  const [previousPrices, setPreviousPrices] = useState({})
 
   const duplicateNewProduct = useMemo(() => {
     const key = normalizeKey(newProduct.name)
@@ -106,6 +107,28 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
           image: buildProductImageUrl(p),
         }))
         setProducts(mappedData)
+
+        // Fetch previous (non-current) prices for each product to show on hover
+        try {
+          const { data: historyData } = await supabase
+            .from('products')
+            .select('productID, price, created_at')
+            .eq('is_current', false)
+            .order('created_at', { ascending: false })
+
+          if (historyData) {
+            const prevMap = {}
+            for (const row of historyData) {
+              // Only keep the most recent previous price per productID
+              if (!prevMap[row.productID]) {
+                prevMap[row.productID] = row.price
+              }
+            }
+            setPreviousPrices(prevMap)
+          }
+        } catch {
+          // ignore history fetch failures
+        }
 
         try {
           localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: mappedData }))
@@ -486,7 +509,15 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
                         <option value="NOT AVAILABLE">NOT AVAILABLE</option>
                       </select>
                     </div>
-                    <div className="menu-cell price-cell">₱ {Number(product.price).toFixed(2)}</div>
+                    <div className="menu-cell price-cell price-cell-hover">
+                      ₱ {Number(product.price).toFixed(2)}
+                      {previousPrices[product.id] != null && Number(previousPrices[product.id]) !== Number(product.price) && (
+                        <div className="price-tooltip">
+                          <span className="price-tooltip-prev">Previous: ₱ {Number(previousPrices[product.id]).toFixed(2)}</span>
+                          <span className="price-tooltip-curr">Current: ₱ {Number(product.price).toFixed(2)}</span>
+                        </div>
+                      )}
+                    </div>
                     <div className="menu-cell action-cell">
                       <button className="edit-btn" onClick={() => handleEdit(product.id)} type="button">EDIT</button>
                     </div>

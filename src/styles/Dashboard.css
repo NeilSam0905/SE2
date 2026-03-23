@@ -827,7 +827,7 @@
   flex-direction: column;
   gap: 1rem;
   overflow-y: auto;
-  max-height: 200px;
+  max-height: 260px;
   padding-right: 0.5rem;
 }
 
@@ -850,87 +850,146 @@
   background: #6d3410;
 }
 
-.order-item {
+/* --- Real Time Order Card (new design) --- */
+.rto-card {
   display: flex;
+  align-items: center;
+  padding: 1.1rem 1.4rem;
+  background: #fff;
+  border: 2px solid #222;
+  border-radius: 14px;
   gap: 1rem;
-  align-items: flex-start;
-  padding: 1rem;
-  background-color: white;
-  border-radius: 10px;
-  border-left: 4px solid transparent;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: box-shadow 0.2s;
 }
 
-.order-item:hover {
-  transform: translateX(3px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+.rto-card:hover {
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.1);
 }
 
-.order-item.completed {
-  border-left-color: #5BC0BE;
-}
-
-.order-item.preparing {
-  border-left-color: #F2CC8F;
-}
-
-.order-indicator {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  margin-top: 5px;
-  flex-shrink: 0;
-}
-
-.order-item.completed .order-indicator {
-  background-color: #5BC0BE;
-}
-
-.order-item.preparing .order-indicator {
-  background-color: #F2CC8F;
-}
-
-.order-details {
+.rto-left {
   flex: 1;
+  min-width: 0;
 }
 
-.order-stamp {
-  margin-left: auto;
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: #666;
-  white-space: nowrap;
-  padding-left: 0.75rem;
+.rto-order-id {
+  font-size: 1.15rem;
+  font-weight: 900;
+  color: #c1121f;
+  font-style: italic;
+  text-decoration: underline;
 }
 
-.order-number {
-  font-weight: 700;
-  font-size: 0.95rem;
+.rto-order-type {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #444;
+  margin-top: 0.15rem;
+}
+
+.rto-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rto-price {
+  font-size: 1.35rem;
+  font-weight: 800;
   color: #000;
-  margin-bottom: 0.15rem;
+  white-space: nowrap;
 }
 
-.order-type-badge {
-  display: inline-block;
+.rto-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.rto-status {
+  font-size: 0.82rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.rto-status.completed {
+  color: #5BC0BE;
+}
+
+.rto-status.preparing {
+  color: #d4a017;
+}
+
+.rto-bottom-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.rto-stamp-wrapper {
+  position: relative;
+  cursor: default;
+}
+
+.rto-stamp {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #888;
+}
+
+.rto-date-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #3a2010;
+  color: #fff;
   font-size: 0.72rem;
-  font-weight: 700;
-  color: #6a1b1a;
-  background: #f5e6d3;
-  border: 1.5px solid #6a1b1a;
+  font-weight: 500;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 10;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+}
+
+.rto-date-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #3a2010;
+}
+
+.rto-stamp-wrapper:hover .rto-date-tooltip {
+  display: block;
+}
+
+.rto-paid-badge {
+  font-size: 0.78rem;
+  font-weight: 900;
+  padding: 0.25rem 0.85rem;
   border-radius: 999px;
-  padding: 0.1rem 0.5rem;
-  margin-bottom: 0.2rem;
+  border: 2px solid #000;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
-.order-description {
-  font-size: 0.85rem;
-  color: #666;
-  margin-bottom: 0.25rem;
+.rto-paid-badge.paid {
+  background: #fff;
+  color: #000;
 }
 
-.order-time {
-  font-size: 0.8rem;
-  color: #999;
+.rto-paid-badge.unpaid {
+  background: #fce4e4;
+  color: #c1121f;
+  border-color: #c1121f;
 }
 
 /* Responsive Design */

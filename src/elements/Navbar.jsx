@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import '../styles/Navbar.css'
 import logoImage from '../../images/Staff View.png'
-import menuIcon from '../../public/Menu Icon Logo.webp'
+const menuIcon = new URL('/Menu Icon Logo.webp', import.meta.url).href
 import ConfirmModal from './ConfirmModal'
 
 function Navbar({

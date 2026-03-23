@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import './styles/NavbarLegacy.css'
 import logoImage from '../images/Staff View.png'
-import menuIcon from '../public/Menu Icon Logo.webp'
+const menuIcon = new URL('/Menu Icon Logo.webp', import.meta.url).href
 
 function Navbar({ onLogout, activePage, user = { name: 'Admin User', role: 'Administrator' } }) {
   const [showDropdown, setShowDropdown] = useState(false)

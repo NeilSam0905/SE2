@@ -233,7 +233,7 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
   const fetchRealtimeCards = useCallback(async () => {
     const { data, error } = await supabase
       .from('orders')
-      .select('orderID, status, orderType, orderTimestamp, order_items(quantity, products(productName))')
+      .select('orderID, status, orderType, orderTimestamp, paymentstatus, order_items(quantity, price, products(productName))')
       .order('orderTimestamp', { ascending: false })
       .limit(25)
 
@@ -248,12 +248,22 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
       const stamp = parseStamp(row?.orderTimestamp)
       const rawType = String(row?.orderType || '').toLowerCase().replace(/[^a-z]/g, '')
       const orderType = rawType === 'takeout' ? 'Take-Out' : rawType === 'dinein' ? 'Dine-In' : null
+      const items = Array.isArray(row.order_items) ? row.order_items : []
+      const totalPrice = items.reduce((sum, it) => sum + Number(it?.price || 0) * Number(it?.quantity || 0), 0)
+      const totalItems = items.reduce((sum, it) => sum + Number(it?.quantity || 0), 0)
+      const servedItems = isCompletedStatusValue(row?.status) ? totalItems : 0
+      const paymentStatus = String(row?.paymentstatus || '').toLowerCase()
+      const isPaid = paymentStatus === 'paid' || paymentStatus === 'settled' || paymentStatus === 'complete'
       return {
         label,
         orderID: row.orderID,
         orderType,
-        description: buildOrderDescription(row.order_items),
+        totalPrice,
+        totalItems,
+        servedItems,
+        isPaid,
         time: stamp ? formatMilitaryTime(stamp) : '--:--',
+        date: stamp ? stamp.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : null,
       }
     }
 
@@ -1207,32 +1217,34 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
             <div className="dashboard-section real-time-order-section">
               <h2>Real Time Order</h2>
               <div className="order-list">
-                <div className="order-item completed">
-                  <div className="order-indicator"></div>
-                  <div className="order-details">
-                    <div className="order-number">
-                      Order {realtimeCards.completed?.orderID ?? '--'} - Completed
+                {[realtimeCards.completed, realtimeCards.pending].filter(Boolean).map((card) => {
+                  const isCompleted = card.label === 'Completed'
+                  return (
+                    <div key={card.orderID} className={`rto-card ${isCompleted ? 'completed' : 'preparing'}`}>
+                      <div className="rto-left">
+                        <div className="rto-order-id">Order #{card.orderID ?? '--'}</div>
+                        {card.orderType && <div className="rto-order-type">{card.orderType}</div>}
+                      </div>
+                      <div className="rto-center">
+                        <div className="rto-price">₱ {Number(card.totalPrice || 0).toFixed(2)}</div>
+                      </div>
+                      <div className="rto-right">
+                        <div className={`rto-status ${isCompleted ? 'completed' : 'preparing'}`}>
+                          Status: {card.servedItems}/{card.totalItems} {card.label}
+                        </div>
+                        <div className="rto-bottom-row">
+                          <div className="rto-stamp-wrapper">
+                            <span className="rto-stamp">{card.time}</span>
+                            {card.date && <span className="rto-date-tooltip">{card.date}</span>}
+                          </div>
+                          <div className={`rto-paid-badge ${card.isPaid ? 'paid' : 'unpaid'}`}>
+                            {card.isPaid ? 'PAID' : 'UNPAID'}
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    {realtimeCards.completed?.orderType && (
-                      <div className="order-type-badge">{realtimeCards.completed.orderType}</div>
-                    )}
-                    <div className="order-description">{realtimeCards.completed?.description || '—'}</div>
-                  </div>
-                  <div className="order-stamp">{realtimeCards.completed?.time || '--:--'}</div>
-                </div>
-                <div className="order-item preparing">
-                  <div className="order-indicator"></div>
-                  <div className="order-details">
-                    <div className="order-number">
-                      Order {realtimeCards.pending?.orderID ?? '--'} - Preparing
-                    </div>
-                    {realtimeCards.pending?.orderType && (
-                      <div className="order-type-badge">{realtimeCards.pending.orderType}</div>
-                    )}
-                    <div className="order-description">{realtimeCards.pending?.description || '—'}</div>
-                  </div>
-                  <div className="order-stamp">{realtimeCards.pending?.time || '--:--'}</div>
-                </div>
+                  )
+                })}
               </div>
             </div>
 
