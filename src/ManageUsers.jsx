@@ -5,6 +5,7 @@ import { formatInteger } from './utils/numberFormat'
 import ConfirmModal from './elements/ConfirmModal'
 import { supabase } from './lib/supabaseClient'
 import { ADD_PRODUCT_BUTTON_ICON } from './utils/publicAsset'
+import bcrypt from 'bcryptjs'
 
 function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User' }) {
   const [searchTerm, setSearchTerm] = useState('')
@@ -171,6 +172,11 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
       }
 
       try {
+        if (trimmed.password) {
+          const salt = await bcrypt.genSalt(10)
+          trimmed.password = await bcrypt.hash(trimmed.password, salt)
+        }
+
         const { error } = await supabase.from('users').insert([trimmed])
         if (error) {
           console.error('Supabase insert error:', error)
@@ -196,9 +202,12 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
       }
 
       const nextPassword = String(editingUser.password || '').trim()
-      if (nextPassword) updatePayload.password = nextPassword
 
       try {
+        if (nextPassword) {
+          const salt = await bcrypt.genSalt(10)
+          updatePayload.password = await bcrypt.hash(nextPassword, salt)
+        }
         const { error } = await supabase.from('users').update(updatePayload).eq('id', editingUser.id)
         if (error) {
           console.error('Supabase update error:', error)

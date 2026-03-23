@@ -8,6 +8,7 @@ import CompletedOrders from './CompletedOrders.jsx'
 import ManageUsers from './ManageUsers.jsx'
 import Payment from './Payment.jsx'
 import { supabase } from './lib/supabaseClient'
+import bcrypt from 'bcryptjs'
 
 function App() {
   const [name, setName] = useState('')
@@ -85,11 +86,10 @@ function App() {
     setLoading(true)
 
     try {
-      const { data, error: dbError } = await supabase
+const { data, error: dbError } = await supabase
         .from('users')
         .select('*')
         .eq('name', name)
-        .eq('password', password)
         .single()
 
       if (dbError || !data) {
@@ -100,6 +100,16 @@ function App() {
         return
       }
 
+      const isPasswordValid = await bcrypt.compare(password, data.password)
+      
+      if (!isPasswordValid) {
+        setError('Invalid name or password')
+        setName('')
+        setPassword('')
+        setLoading(false)
+        return
+      }
+      
       if (String(data.status || '').toLowerCase() === 'deactivated') {
         setError('Your account has been deactivated. Please contact an administrator.')
         setName('')

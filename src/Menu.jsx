@@ -82,12 +82,12 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
   // --- 1. READ (Fetch from Supabase) ---
   const fetchProducts = async () => {
     try {
-      const preferredSelect = 'productID, productName, price, status, type, image_path, image_url, image'
-      let { data, error } = await supabase.from('products').select(preferredSelect).order('productID', { ascending: true })
+      const preferredSelect = 'product_sid, productID, productName, price, status, type, image_path, image_url, image'
+      let { data, error } = await supabase.from('products').select(preferredSelect).eq('is_current', true).order('productID', { ascending: true })
 
       // Backward-compatible fallback if the DB doesn't have the new image columns yet.
       if (error) {
-        const fallback = await supabase.from('products').select('*').order('productID', { ascending: true })
+        const fallback = await supabase.from('products').select('*').eq('is_current', true).order('productID', { ascending: true })
         data = fallback.data
         error = fallback.error
       }
@@ -97,6 +97,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
       if (data) {
         const mappedData = data.map(p => ({
           id: p.productID,
+          sid: p.product_sid,
           name: p.productName,
           price: p.price,
           status: p.status,
@@ -145,6 +146,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
       .from('products')
       .update({ status: newStatus })
       .eq('productID', id)
+      .eq('is_current', true)
 
     if (error) fetchProducts() 
   }
@@ -157,6 +159,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
         .from('products')
         .select('productID')
         .eq('productName', trimmedName)
+        .eq('is_current', true)
         .limit(1)
 
       if (existingEqError) throw existingEqError
@@ -166,6 +169,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
         .from('products')
         .select('productID')
         .ilike('productName', trimmedName)
+        .eq('is_current', true)
         .limit(1)
 
       if (existingIError) throw existingIError
@@ -177,6 +181,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
       price: Number(newProduct.price),
       status: newProduct.status,
       type: newProduct.type,
+      is_current: true
     }
 
     const { data: created, error } = await supabase
@@ -196,6 +201,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
         .from('products')
         .update({ image_path: uploaded.path })
         .eq('productID', createdId)
+        .eq('is_current', true)
 
       if (imgError) throw imgError
     }
@@ -213,30 +219,44 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
         .select('productID')
         .ilike('productName', trimmedName)
         .neq('productID', editingProduct.id)
+        .eq('is_current', true)
         .limit(1)
 
       if (existingIError) throw existingIError
       if (existingI?.length) throw new Error('Another product with the same name already exists in the menu.')
     }
 
-    const { error } = await supabase
+ // 🔴 CHANGED: Expire the old version
+    const { error: expireError } = await supabase
       .from('products')
-      .update({
+      .update({ is_current: false }) 
+      .eq('productID', editingProduct.id)
+      .eq('is_current', true) 
+
+    if (expireError) throw expireError
+
+    const { data: newVersion, error: insertError } = await supabase
+      .from('products')
+      .insert({
+        productID: editingProduct.id, 
         productName: trimmedName,
         price: Number(editingProduct.price),
         status: editingProduct.status,
         type: editingProduct.type,
+        is_current: true,
+        image_path: editingProduct.imagePath || null 
       })
-      .eq('productID', editingProduct.id)
+      .select('product_sid')
+      .single()
 
-    if (error) throw error
+    if (insertError) throw insertError
 
     if (editingProductImageFile) {
       const uploaded = await uploadProductImage({ file: editingProductImageFile, productId: editingProduct.id })
       const { error: imgError } = await supabase
         .from('products')
         .update({ image_path: uploaded.path })
-        .eq('productID', editingProduct.id)
+        .eq('product_sid', newVersion.product_sid) 
 
       if (imgError) throw imgError
     }
