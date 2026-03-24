@@ -4,6 +4,7 @@ import ConfirmModal from './elements/ConfirmModal'
 import './styles/PendingOrders.css'
 import { formatMoney } from './utils/numberFormat'
 import { fetchOrdersWithItems, markOrderCompleted, subscribeToOrderRelatedChanges } from './data/orders'
+import placeholderSvg from '/placeholder.svg'
 
 function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User' }) {
   const [orders, setOrders] = useState([])
@@ -195,10 +196,10 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
                     <div className={`item-image-wrap ${it.served ? 'served' : 'unserved'}`}>
                       <img
                         className="item-image"
-                        src={it.image || '/placeholder.svg'}
+                        src={it.image || placeholderSvg}
                         alt={it.name}
                         loading="lazy"
-                        onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/placeholder.svg' }}
+                        onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = placeholderSvg }}
                       />
                     </div>
                     <div className="item-main">

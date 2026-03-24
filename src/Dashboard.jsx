@@ -6,6 +6,7 @@ import { getPublicStorageUrl, PRODUCT_IMAGE_BUCKET } from './lib/supabaseClient'
 import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { formatInteger, formatMoney } from './utils/numberFormat'
 import { subscribeToOrderRelatedChanges } from './data/orders'
+import placeholderSvg from '/placeholder.svg'
 
 const normalizeText = (value) => String(value || '').toLowerCase().replace(/[^a-z]/g, '')
 const COMPLETED_STATUSES = new Set(['completed', 'complete', 'done', 'served', 'closed', 'finished'])
@@ -1126,10 +1127,10 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
                           <div className="product-info">
                             <img
                               className="product-image"
-                              src={product.image || '/placeholder.svg'}
+                              src={product.image || placeholderSvg}
                               alt={product.name}
                               loading="lazy"
-                              onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/placeholder.svg' }}
+                              onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = placeholderSvg }}
                             />
                             <div className="product-info-text">
                               <span className="product-name">{product.name}</span>

@@ -4,6 +4,7 @@ import './styles/Menu.css'
 import ConfirmModal from './elements/ConfirmModal'
 import { getPublicStorageUrl, PRODUCT_IMAGE_BUCKET, supabase, uploadProductImage } from './lib/supabaseClient'
 import { ADD_PRODUCT_BUTTON_ICON } from './utils/publicAsset'
+import placeholderSvg from '/placeholder.svg'
 
 const PRODUCTS_CACHE_KEY = 'products_cache_v1'
 const PRODUCTS_CACHE_MAX_AGE_MS = 5 * 60 * 1000
@@ -59,7 +60,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
     price: '',
     status: 'AVAILABLE',
     type: 'Meat',
-    image: '/placeholder.svg'
+    image: placeholderSvg
   })
 
   const [newProductImageFile, setNewProductImageFile] = useState(null)
@@ -496,7 +497,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
                 {group.items.map((product) => (
                   <div key={product.id} className="menu-row menu-row-grid">
                     <div className="menu-cell product-cell">
-                      <img src={product.image || '/placeholder.svg'} alt={product.name} className="product-image" loading="lazy" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/placeholder.svg' }} />
+                      <img src={product.image || placeholderSvg} alt={product.name} className="product-image" loading="lazy" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = placeholderSvg }} />
                       <span className="product-name">{product.name}</span>
                     </div>
                     <div className="menu-cell status-cell">
@@ -540,7 +541,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
             <div className="modal-body">
               <div className="modal-left">
                 <div className="image-preview">
-                  <img src={newProduct.image || '/placeholder.svg'} alt="Product" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/placeholder.svg' }} />
+                  <img src={newProduct.image || placeholderSvg} alt="Product" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = placeholderSvg }} />
                 </div>
                 <button className="upload-btn">
                   <span className="upload-icon">↓</span> UPLOAD IMAGE
@@ -596,7 +597,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
             <div className="modal-body">
               <div className="modal-left">
                 <div className="image-preview">
-                  <img src={editingProduct.image || '/placeholder.svg'} alt="Product" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/placeholder.svg' }} />
+                  <img src={editingProduct.image || placeholderSvg} alt="Product" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = placeholderSvg }} />
                 </div>
                 <button className="upload-btn">
                   <span className="upload-icon">↓</span> UPLOAD IMAGE

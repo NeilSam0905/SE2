@@ -4,6 +4,7 @@ import ConfirmModal from './elements/ConfirmModal'
 import './styles/Payment.css'
 import { supabase, getPublicStorageUrl, PRODUCT_IMAGE_BUCKET } from './lib/supabaseClient'
 import { formatMoney } from './utils/numberFormat'
+import placeholderSvg from '/placeholder.svg'
 
 const DISCOUNT_RATE = 0.2
 const GCashRefPattern = /^\d{10,15}$/
@@ -347,7 +348,7 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
                 <div className="payment-items-scroll">
                   {(order.items || []).map((it) => (
                     <div key={it.id} className="payment-item-row">
-                      <img className="payment-item-img" src={it.image || '/placeholder.svg'} alt={it.name} loading="lazy" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/placeholder.svg' }} />
+                      <img className="payment-item-img" src={it.image || placeholderSvg} alt={it.name} loading="lazy" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = placeholderSvg }} />
                       <div className="payment-item-name">{it.name}</div>
                       <div className="payment-item-price">₱ {formatMoney(Number(it.price || 0) * Number(it.qty || 0))}</div>
                       <div className="payment-item-qty">{it.qty}</div>

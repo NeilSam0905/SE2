@@ -3,6 +3,7 @@ import Navbar from './elements/Navbar'
 import './styles/CompletedOrders.css'
 import { formatMoney } from './utils/numberFormat'
 import { fetchOrdersWithItems, setOrderPaidStatus, subscribeToOrderRelatedChanges } from './data/orders'
+import placeholderSvg from '/placeholder.svg'
 
 function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User' }) {
   const isAdmin = userRole === 'admin'
@@ -335,10 +336,10 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
                   <div key={it.id} className="details-item">
                     <img
                       className="item-image"
-                      src={it.image || '/placeholder.svg'}
+                      src={it.image || placeholderSvg}
                       alt={it.name}
                       loading="lazy"
-                      onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/placeholder.svg' }}
+                      onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = placeholderSvg }}
                     />
                     <div className="item-main">
                       <div className="item-name">{it.name}</div>
