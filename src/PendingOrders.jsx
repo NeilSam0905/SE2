@@ -195,9 +195,10 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
                     <div className={`item-image-wrap ${it.served ? 'served' : 'unserved'}`}>
                       <img
                         className="item-image"
-                        src={it.image || '/product1.jpg'}
+                        src={it.image || '/placeholder.svg'}
                         alt={it.name}
                         loading="lazy"
+                        onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/placeholder.svg' }}
                       />
                     </div>
                     <div className="item-main">

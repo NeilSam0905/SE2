@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
+  <rect width="120" height="120" rx="8" fill="#e8e8e8"/>
+  <rect x="1" y="1" width="118" height="118" rx="7" fill="none" stroke="#cccccc" stroke-width="1"/>
+  <!-- camera body -->
+  <rect x="30" y="44" width="60" height="40" rx="5" fill="#b0b0b0"/>
+  <!-- camera lens outer -->
+  <circle cx="60" cy="64" r="14" fill="#e8e8e8"/>
+  <!-- camera lens inner -->
+  <circle cx="60" cy="64" r="10" fill="#c8c8c8"/>
+  <!-- camera lens center -->
+  <circle cx="60" cy="64" r="5" fill="#a0a0a0"/>
+  <!-- viewfinder bump -->
+  <rect x="44" y="38" width="16" height="8" rx="3" fill="#b0b0b0"/>
+  <!-- flash -->
+  <circle cx="79" cy="50" r="3" fill="#e8e8e8"/>
+  <!-- "No Image" text -->
+  <text x="60" y="100" font-family="Arial, Helvetica, sans-serif" font-size="10" fill="#999999" text-anchor="middle" font-weight="600">No Image</text>
+</svg>

@@ -40,7 +40,7 @@ const buildProductImageUrl = (row) => {
   const legacy = row?.image
   if (legacy) return legacy
 
-  return '/product1.jpg'
+  return null
 }
 
 function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User' }) {
@@ -59,7 +59,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
     price: '',
     status: 'AVAILABLE',
     type: 'Meat',
-    image: '/product1.jpg'
+    image: '/placeholder.svg'
   })
 
   const [newProductImageFile, setNewProductImageFile] = useState(null)
@@ -496,7 +496,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
                 {group.items.map((product) => (
                   <div key={product.id} className="menu-row menu-row-grid">
                     <div className="menu-cell product-cell">
-                      <img src={product.image} alt={product.name} className="product-image" loading="lazy" />
+                      <img src={product.image || '/placeholder.svg'} alt={product.name} className="product-image" loading="lazy" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/placeholder.svg' }} />
                       <span className="product-name">{product.name}</span>
                     </div>
                     <div className="menu-cell status-cell">
@@ -540,7 +540,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
             <div className="modal-body">
               <div className="modal-left">
                 <div className="image-preview">
-                  <img src={newProduct.image} alt="Product" />
+                  <img src={newProduct.image || '/placeholder.svg'} alt="Product" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/placeholder.svg' }} />
                 </div>
                 <button className="upload-btn">
                   <span className="upload-icon">↓</span> UPLOAD IMAGE
@@ -596,7 +596,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
             <div className="modal-body">
               <div className="modal-left">
                 <div className="image-preview">
-                  <img src={editingProduct.image} alt="Product" />
+                  <img src={editingProduct.image || '/placeholder.svg'} alt="Product" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/placeholder.svg' }} />
                 </div>
                 <button className="upload-btn">
                   <span className="upload-icon">↓</span> UPLOAD IMAGE

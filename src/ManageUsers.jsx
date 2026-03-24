@@ -625,8 +625,8 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
 
       <ConfirmModal
         open={samePasswordModal}
-        title="Same Password"
-        message="Inputted Password is the same as the current password. Please enter a different password."
+        title="Same Password!"
+        message="The Password you have inputted is the same as the current password. Please enter a different password."
         showCancel={false}
         confirmText="OK"
         onCancel={() => setSamePasswordModal(false)}

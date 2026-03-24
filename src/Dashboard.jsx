@@ -1126,9 +1126,10 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
                           <div className="product-info">
                             <img
                               className="product-image"
-                              src={product.image || '/product1.jpg'}
+                              src={product.image || '/placeholder.svg'}
                               alt={product.name}
                               loading="lazy"
+                              onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/placeholder.svg' }}
                             />
                             <div className="product-info-text">
                               <span className="product-name">{product.name}</span>

@@ -335,9 +335,10 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
                   <div key={it.id} className="details-item">
                     <img
                       className="item-image"
-                      src={it.image || '/product1.jpg'}
+                      src={it.image || '/placeholder.svg'}
                       alt={it.name}
                       loading="lazy"
+                      onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/placeholder.svg' }}
                     />
                     <div className="item-main">
                       <div className="item-name">{it.name}</div>
