@@ -154,8 +154,8 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
       const trimmed = {
         name: newUser.name.trim(),
         role: newUser.role,
-        // 'Inactive' means enabled but logged out; 'Deactivated' blocks login.
-        status: newUser.active ? 'Inactive' : 'Deactivated',
+        // 'Inactive' means enabled but logged out; new users always start Inactive.
+        status: 'Inactive',
         password: String(newUser.password || '').trim(),
       }
 
@@ -519,16 +519,6 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
                       <option value="Admin">Admin</option>
                       <option value="Staff">Staff</option>
                       <option value="Customer">Customer</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>STATUS</label>
-                    <select
-                      value={newUser.active ? 'Active' : 'Inactive'}
-                      onChange={(e) => setNewUser({ ...newUser, active: e.target.value === 'Active' })}
-                    >
-                      <option value="Active">Active</option>
-                      <option value="Inactive">Inactive</option>
                     </select>
                   </div>
                 </div>
