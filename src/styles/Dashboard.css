@@ -805,14 +805,7 @@
   flex-wrap: wrap;
 }
 
-.trend-axis-label {
-  font-weight: 700;
-  color: #000;
-  background: #fff;
-  border: 2px solid #000;
-  border-radius: 10px;
-  padding: 0.35rem 0.6rem;
-}
+
 
 .real-time-order-section {
   grid-column: 2;

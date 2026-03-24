@@ -10,8 +10,9 @@
 .manage-users-content {
   flex: 1;
   padding: 2rem;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Keep page scrollbar consistent with dashboard */
@@ -40,6 +41,7 @@
   font-weight: 800;
   color: #000;
   margin: 0 0 1.25rem;
+  flex-shrink: 0;
 }
 
 .mu-stats {
@@ -49,6 +51,7 @@
   margin-bottom: 1.25rem;
   position: relative;
   z-index: 20;
+  flex-shrink: 0;
 }
 
 .mu-stat-card {
@@ -214,6 +217,11 @@
   padding: 1.25rem;
   position: relative;
   z-index: 1;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .mu-controls {
@@ -342,6 +350,10 @@
   border-radius: 22px;
   overflow: hidden;
   background: #fff;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .mu-table-head {
@@ -474,8 +486,9 @@
 }
 
 .mu-table-scroll {
-  max-height: 420px;
+  flex: 1;
   overflow-y: auto;
+  min-height: 0;
 }
 
 /* Custom Scrollbar (match Dashboard) */
@@ -504,8 +517,33 @@
     flex-wrap: wrap;
   }
 
+  .mu-search {
+    flex: 1 1 200px;
+    min-width: 0;
+  }
+
   .mu-table-head {
     font-size: 1.25rem;
+  }
+
+  .mu-table-head,
+  .mu-row {
+    grid-template-columns: 1.3fr 0.8fr 0.5fr;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .mu-stat-card {
+    min-width: 200px;
+    padding: 1rem 1.25rem;
+  }
+
+  .mu-stat-label {
+    font-size: 1rem;
+  }
+
+  .mu-stat-value {
+    font-size: 1.5rem;
   }
 }
 
@@ -518,10 +556,123 @@
     font-size: 1.5rem;
   }
 
+  .mu-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .mu-search {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .mu-controls .mu-pill-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .mu-stats {
+    gap: 0.75rem;
+  }
+
+  .mu-stat-card {
+    flex: 1 1 calc(50% - 0.75rem);
+    min-width: 160px;
+    padding: 1rem;
+  }
+
+  .mu-stat-label {
+    font-size: 0.95rem;
+  }
+
+  .mu-stat-value {
+    font-size: 1.35rem;
+  }
+
+  .mu-stat-icon {
+    width: 48px;
+    height: 48px;
+  }
+
+  .mu-stat-icon svg {
+    width: 40px;
+    height: 40px;
+  }
+
   .mu-table-head,
   .mu-row {
     grid-template-columns: 1.2fr 0.8fr 0.6fr;
     padding-left: 1rem;
     padding-right: 1rem;
+  }
+
+  .mu-table-head {
+    font-size: 1.1rem;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  .mu-role-pill {
+    font-size: 0.85rem;
+    padding: 0.4rem 0.9rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .manage-users-content {
+    padding: 0.75rem;
+  }
+
+  .mu-stats {
+    flex-direction: column;
+  }
+
+  .mu-stat-card {
+    min-width: 100%;
+  }
+
+  .mu-table-head {
+    display: none;
+  }
+
+  .mu-row {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  }
+
+  .mu-row + .mu-row {
+    border-top: none;
+  }
+
+  .mu-col-user {
+    gap: 0.75rem;
+  }
+
+  .mu-col-role {
+    justify-content: flex-start;
+    padding-left: 3.25rem;
+  }
+
+  .mu-col-action {
+    justify-content: flex-start;
+    padding-left: 3.25rem;
+  }
+
+  .mu-user-name {
+    font-size: 0.95rem;
+  }
+
+  .mu-avatar {
+    width: 38px;
+    height: 38px;
+    font-size: 0.85rem;
+  }
+
+  .mu-panel {
+    padding: 1rem;
+    border-radius: 18px;
   }
 }

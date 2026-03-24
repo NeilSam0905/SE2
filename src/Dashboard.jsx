@@ -640,21 +640,6 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
 
   const hasMostSold = filteredCategorizedMostSold.length > 0
 
-  const trendXAxisLabel = useMemo(() => {
-    switch (trendFilter) {
-      case 'Daily':
-        return 'Day'
-      case 'Weekly':
-        return 'Week'
-      case 'Monthly':
-        return 'Month'
-      case 'Yearly':
-        return 'Year'
-      default:
-        return 'Day'
-    }
-  }, [trendFilter])
-
   const trendData = useMemo(() => {
     const list = Array.isArray(trendPayments) ? trendPayments : []
 
@@ -1168,7 +1153,6 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
               <div className="trend-header">
                 <h2>Sales Trend</h2>
                 <div className="trend-right">
-                  <div className="trend-axis-label">{trendXAxisLabel}</div>
                   <div className="prep-filter-row prep-filter-row--top">
                     <button
                       type="button"
