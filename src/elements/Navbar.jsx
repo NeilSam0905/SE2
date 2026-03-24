@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import '../styles/Navbar.css'
 import logoImage from '../../images/Staff View.png'
-const menuIcon = new URL('/Menu Icon Logo.webp', import.meta.url).href
+import accountImage from '/logo_placeholder.png'
+import menuIconImage from '/Menu Icon Logo.webp'
 import ConfirmModal from './ConfirmModal'
 
 function Navbar({
@@ -56,7 +57,7 @@ function Navbar({
               onClick={() => setShowDropdown(!showDropdown)}
             >
               <img 
-                src="/logo_placeholder.png" 
+                src={accountImage} 
                 alt="Account" 
                 className="account-img"
               />
@@ -126,7 +127,7 @@ function Navbar({
             className={`nav-tab ${activePage === 'menu' ? 'active' : ''}`}
             onClick={() => onNavigate && onNavigate('menu')}
           >
-            <img src={menuIcon} alt="Menu" className="nav-tab-icon" />
+            <img src={menuIconImage} alt="Menu" className="nav-tab-icon" />
             Menu
           </button>
         ) : null}
