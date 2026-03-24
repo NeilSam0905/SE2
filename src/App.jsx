@@ -7,8 +7,7 @@ import PendingOrders from './PendingOrders.jsx'
 import CompletedOrders from './CompletedOrders.jsx'
 import ManageUsers from './ManageUsers.jsx'
 import Payment from './Payment.jsx'
-import { supabase } from './lib/supabaseClient'
-import bcrypt from 'bcryptjs'
+import { supabase, toAuthEmail } from './lib/supabaseClient'
 
 function App() {
   const [name, setName] = useState('')
@@ -80,19 +79,51 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoggedIn, userId])
 
+  // Restore session from Supabase Auth on page reload.
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user && !isLoggedIn) {
+        const authId = session.user.id
+        const { data: profile } = await supabase
+          .from('users')
+          .select('*')
+          .eq('auth_id', authId)
+          .single()
+
+        if (profile && String(profile.status || '').toLowerCase() !== 'deactivated') {
+          const role = String(profile.role || 'staff').toLowerCase()
+          const uid = profile.id != null ? Number(profile.id) : null
+          setUserId(uid)
+          setUserRole(role)
+          setUserName(profile.name || 'User')
+          setIsLoggedIn(true)
+          setCurrentPage(role === 'admin' ? 'dashboard' : 'pending')
+        }
+      }
+
+      if (event === 'SIGNED_OUT') {
+        setIsLoggedIn(false)
+        setUserId(null)
+      }
+    })
+
+    return () => subscription.unsubscribe()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const handleLogin = async (e) => {
     e.preventDefault()
     setError('')
     setLoading(true)
 
     try {
-const { data, error: dbError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('name', name)
-        .single()
+      const email = toAuthEmail(name)
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
 
-      if (dbError || !data) {
+      if (authError) {
         setError('Invalid name or password')
         setName('')
         setPassword('')
@@ -100,17 +131,44 @@ const { data, error: dbError } = await supabase
         return
       }
 
-      const isPasswordValid = await bcrypt.compare(password, data.password)
-      
-      if (!isPasswordValid) {
+      const authId = authData.user.id
+
+      // Look up the profile from the users table (by auth_id, fallback to name).
+      let profile = null
+      {
+        const { data } = await supabase
+          .from('users')
+          .select('*')
+          .eq('auth_id', authId)
+          .single()
+        profile = data
+      }
+
+      if (!profile) {
+        const { data } = await supabase
+          .from('users')
+          .select('*')
+          .eq('name', name)
+          .single()
+        profile = data
+
+        // Link the auth_id for future logins.
+        if (profile && profile.id != null) {
+          await supabase.from('users').update({ auth_id: authId }).eq('id', profile.id)
+        }
+      }
+
+      if (!profile) {
+        await supabase.auth.signOut()
         setError('Invalid name or password')
         setName('')
         setPassword('')
         setLoading(false)
         return
       }
-      
-      if (String(data.status || '').toLowerCase() === 'deactivated') {
+
+      if (String(profile.status || '').toLowerCase() === 'deactivated') {
+        await supabase.auth.signOut()
         setError('Your account has been deactivated. Please contact an administrator.')
         setName('')
         setPassword('')
@@ -118,8 +176,8 @@ const { data, error: dbError } = await supabase
         return
       }
 
-      const nextRole = String(data.role || 'staff').toLowerCase()
-      const nextUserId = data.id != null ? Number(data.id) : null
+      const nextRole = String(profile.role || 'staff').toLowerCase()
+      const nextUserId = profile.id != null ? Number(profile.id) : null
 
       if (nextUserId != null) {
         setUserId(nextUserId)
@@ -129,7 +187,7 @@ const { data, error: dbError } = await supabase
       }
 
       setUserRole(nextRole)
-      setUserName(data.name || 'User')
+      setUserName(profile.name || 'User')
       setIsLoggedIn(true)
 
       if (nextRole === 'admin') {
@@ -152,6 +210,7 @@ const { data, error: dbError } = await supabase
     const fallbackId = fallbackIdRaw != null ? Number(fallbackIdRaw) : null
     const id = userId ?? (Number.isFinite(fallbackId) ? fallbackId : null)
     if (id != null) await setOnlineStatus(id, false)
+    await supabase.auth.signOut()
     setIsLoggedIn(false)
     setUserId(null)
     setUserRole('admin')

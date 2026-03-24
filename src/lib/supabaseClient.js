@@ -11,6 +11,20 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// Non-persistent client for creating users without switching the admin's active session.
+export const supabaseNoSession = createClient(supabaseUrl, supabaseAnonKey, {
+	auth: { persistSession: false },
+});
+
+// Derive a stable auth email from a display name (Supabase Auth requires email).
+export const toAuthEmail = (name) => {
+	const safe = String(name || "")
+		.trim()
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, ".");
+	return `${safe}@tatuns.app`;
+};
+
 export const PRODUCT_IMAGE_BUCKET = "product-images";
 
 const normalizeFileName = (name) => String(name || "file").replace(/[^a-zA-Z0-9._-]/g, "_");

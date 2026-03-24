@@ -3,9 +3,8 @@ import Navbar from './elements/Navbar'
 import './styles/ManageUsers.css'
 import { formatInteger } from './utils/numberFormat'
 import ConfirmModal from './elements/ConfirmModal'
-import { supabase } from './lib/supabaseClient'
+import { supabase, supabaseNoSession, toAuthEmail } from './lib/supabaseClient'
 import { ADD_PRODUCT_BUTTON_ICON } from './utils/publicAsset'
-import bcrypt from 'bcryptjs'
 
 function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User' }) {
   const [searchTerm, setSearchTerm] = useState('')
@@ -173,12 +172,30 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
       }
 
       try {
-        if (trimmed.password) {
-          const salt = await bcrypt.genSalt(10)
-          trimmed.password = await bcrypt.hash(trimmed.password, salt)
+        // Create Supabase Auth user (non-persistent client keeps admin session intact).
+        const email = toAuthEmail(trimmed.name)
+        const plainPassword = trimmed.password
+
+        const { data: signUpData, error: signUpError } = await supabaseNoSession.auth.signUp({
+          email,
+          password: plainPassword,
+          options: { data: { display_name: trimmed.name, role: trimmed.role } },
+        })
+
+        if (signUpError) {
+          console.error('Supabase Auth signUp error:', signUpError)
+          alert('Error creating user account: ' + signUpError.message)
+          return
         }
 
-        const { error } = await supabase.from('users').insert([trimmed])
+        const authId = signUpData.user?.id || null
+
+        const { error } = await supabase.from('users').insert([{
+          name: trimmed.name,
+          role: trimmed.role,
+          status: trimmed.status,
+          auth_id: authId,
+        }])
         if (error) {
           console.error('Supabase insert error:', error)
           alert('Error adding user: ' + error.message)
@@ -205,15 +222,24 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
       const nextPassword = String(editingUser.password || '').trim()
 
       try {
-        if (nextPassword) {
-          const salt = await bcrypt.genSalt(10)
-          updatePayload.password = await bcrypt.hash(nextPassword, salt)
-        }
         const { error } = await supabase.from('users').update(updatePayload).eq('id', editingUser.id)
         if (error) {
           console.error('Supabase update error:', error)
           alert('Error updating user: ' + error.message)
           return
+        }
+
+        // If the password was changed, update it in Supabase Auth.
+        // This only works if the edited user is the currently logged-in user.
+        // For other users, an Edge Function with service_role is needed.
+        if (nextPassword) {
+          const { data: { user: currentAuthUser } } = await supabase.auth.getUser()
+          const editEmail = toAuthEmail(editingUser.name)
+          if (currentAuthUser?.email === editEmail) {
+            await supabase.auth.updateUser({ password: nextPassword })
+          } else {
+            console.warn('Password updated in users table only. Supabase Auth password for other users requires an Edge Function.')
+          }
         }
         setShowEditModal(false)
         setEditingUser(null)
@@ -568,16 +594,8 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
                   className="save-btn save-edit"
                   type="button"
                   onClick={async () => {
-                    const nextPw = String(editingUser.password || '').trim()
-                    if (nextPw && originalUser?.password) {
-                      try {
-                        const isSame = await bcrypt.compare(nextPw, originalUser.password)
-                        if (isSame) {
-                          setSamePasswordModal(true)
-                          return
-                        }
-                      } catch { /* proceed if compare fails */ }
-                    }
+                    // With Supabase Auth, we can't compare hashes client-side.
+                    // Skip same-password check; proceed to confirmation.
                     openSaveConfirm('edit')
                   }}
                   disabled={editSaveDisabled}

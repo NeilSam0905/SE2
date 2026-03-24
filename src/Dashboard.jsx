@@ -511,7 +511,7 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
     }
   }, [timeFilter])
 
-  const salesAmount = useMemo(() => `₱ ${formatInteger(statsData.revenue)}`, [statsData.revenue])
+  const salesAmount = useMemo(() => `₱ ${formatMoney(statsData.revenue)}`, [statsData.revenue])
 
   const salesData = useMemo(() => {
     const paidOrders = new Set((filteredPayments || []).map((p) => p?.orderID).filter((x) => x != null))
@@ -986,7 +986,7 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
           <div className="stats-grid">
             <div className="stat-card">
               <h3>Total Sales</h3>
-              <div className="stat-value">₱ {formatInteger(statsData.revenue)}</div>
+              <div className="stat-value">₱ {formatMoney(statsData.revenue)}</div>
               <div className="stat-change positive">
                 <span className="arrow-up">↑</span> {statsData.revenueChange} <span className="vs-text">{comparisonLabel}</span>
               </div>
@@ -1046,7 +1046,7 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
                             ))}
                           </Pie>
                           <Tooltip
-                            formatter={(value, name, entry) => [`${value}% (₱${formatInteger(entry.payload.amount)})`, name]}
+                            formatter={(value, name, entry) => [`${value}% (₱ ${formatMoney(entry.payload.amount)})`, name]}
                             contentStyle={{ backgroundColor: '#fff', border: '2px solid #000', borderRadius: '8px' }}
                           />
                         </PieChart>
@@ -1148,7 +1148,7 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
                             </div>
                           </div>
                           <span className="product-orders">{formatInteger(product.orders)}</span>
-                          <span className="product-revenue">₱{formatInteger(product.revenue)}</span>
+                          <span className="product-revenue">₱ {formatMoney(product.revenue)}</span>
                         </div>
                       ))}
                     </div>
@@ -1205,11 +1205,13 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
                   <XAxis dataKey="time" stroke="#666" />
                   <YAxis 
                     stroke="#666" 
-                    tickFormatter={(value) => `₱${formatInteger(value)}`}
+                    tickFormatter={(value) => `₱ ${formatMoney(value)}`}
                   />
                   <Tooltip 
-                    formatter={(value) => [`₱${formatInteger(value)}`, 'Sales']}
-                    contentStyle={{ backgroundColor: '#fff', border: '2px solid #000', borderRadius: '8px' }}
+                    formatter={(value) => [`₱ ${formatMoney(value)}`, 'Sales']}
+                    contentStyle={{ backgroundColor: '#fff', border: '2px solid #000', borderRadius: '8px', textAlign: 'center', padding: '0.5rem 1rem' }}
+                    labelStyle={{ display: 'none' }}
+                    itemStyle={{ display: 'flex', justifyContent: 'center' }}
                   />
                   <Line type="monotone" dataKey="sales" stroke="#6a1b1a" strokeWidth={3} dot={{ r: 4 }} />
                 </LineChart>
@@ -1228,7 +1230,7 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
                         {card.orderType && <div className="rto-order-type">{card.orderType}</div>}
                       </div>
                       <div className="rto-center">
-                        <div className="rto-price">₱ {Number(card.totalPrice || 0).toFixed(2)}</div>
+                        <div className="rto-price">₱ {formatMoney(Number(card.totalPrice || 0))}</div>
                       </div>
                       <div className="rto-right">
                         <div className={`rto-status ${isCompleted ? 'completed' : 'preparing'}`}>
