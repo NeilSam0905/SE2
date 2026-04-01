@@ -39,6 +39,10 @@ const mapOrderRowToUi = (row, { includeServedFlag = false } = {}) => {
   const completeTimestamp = getField(row, ['completeTimestamp', 'complete_timestamp', 'completedTimestamp', 'completed_at'])
   const orderType = getField(row, ['orderType', 'order_type']) || ''
   const paymentstatus = getField(row, ['paymentstatus', 'paymentStatus', 'payment_status'])
+  const sessionID = getField(row, ['sessionID', 'session_id']) || null
+  const queueNumber = getField(row, ['queueNumber', 'queue_number']) || null
+  const discountType = getField(row, ['discountType', 'discount_type']) || 'None'
+  const isCustomerOrder = sessionID != null
 
   const orderItems = row?.order_items || row?.orderItems || []
   const payments = row?.payments || []
@@ -62,12 +66,15 @@ const mapOrderRowToUi = (row, { includeServedFlag = false } = {}) => {
 
     const itemId = getField(oi, ['orderItemID', 'orderItemId', 'order_item_id', 'id'])
 
+    const selectedAddons = Array.isArray(oi?.selectedAddons) ? oi.selectedAddons : []
+
     const base = {
       id: itemId != null ? String(itemId) : `${String(id ?? 'order')}-${name}`,
       name,
       image,
       qty: quantity,
       price,
+      selectedAddons,
     }
 
     if (!includeServedFlag) return base
@@ -83,6 +90,10 @@ const mapOrderRowToUi = (row, { includeServedFlag = false } = {}) => {
     orderType,
     paid,
     paymentstatus: paymentstatus ?? (paid ? 'Paid' : 'Unpaid'),
+    sessionID,
+    queueNumber,
+    discountType,
+    isCustomerOrder,
     items,
   }
 }
@@ -95,14 +106,18 @@ export async function fetchOrdersWithItems({ completed }) {
       orderTimestamp,
       completeTimestamp,
       paymentstatus,
+      sessionID,
+      queueNumber,
+      discountType,
       order_items(
         orderItemID,
         quantity,
         price,
         productID,
+        selectedAddons,
         products(productName, price, image_path)
       ),
-      payments(paymentID, totalAmount, paymentTimestamp)
+      payments!fk_payments_orderid(paymentID, totalAmount, paymentTimestamp)
     `
 
   let data
@@ -112,11 +127,41 @@ export async function fetchOrdersWithItems({ completed }) {
     const res = await supabase.from('orders').select(baseSelect)
     data = res.data
     error = res.error
+    if (error) console.warn('[orders] baseSelect failed:', error.message)
   }
 
   // Backward-compatible fallback for DBs that haven't added product image columns yet.
   if (error) {
     const fallbackSelect = `
+      orderID,
+      orderType,
+      status,
+      orderTimestamp,
+      completeTimestamp,
+      paymentstatus,
+      sessionID,
+      queueNumber,
+      discountType,
+      order_items(
+        orderItemID,
+        quantity,
+        price,
+        productID,
+        selectedAddons,
+        products(productName, price)
+      ),
+      payments!fk_payments_orderid(paymentID, totalAmount, paymentTimestamp)
+    `
+
+    const fb = await supabase.from('orders').select(fallbackSelect)
+    data = fb.data
+    error = fb.error
+    if (error) console.warn('[orders] fallbackSelect failed:', error.message)
+  }
+
+  // Fallback: try with unqualified payments (pre-migration DB without the named FK)
+  if (error) {
+    const fallbackUnqualified = `
       orderID,
       orderType,
       status,
@@ -133,12 +178,39 @@ export async function fetchOrdersWithItems({ completed }) {
       payments(paymentID, totalAmount, paymentTimestamp)
     `
 
-    const fb = await supabase.from('orders').select(fallbackSelect)
-    data = fb.data
-    error = fb.error
+    const fb2 = await supabase.from('orders').select(fallbackUnqualified)
+    data = fb2.data
+    error = fb2.error
+    if (error) console.warn('[orders] fallbackUnqualified failed:', error.message)
+  }
+
+  // Last resort: no payments join at all
+  if (error) {
+    const legacySelect = `
+      orderID,
+      orderType,
+      status,
+      orderTimestamp,
+      completeTimestamp,
+      paymentstatus,
+      order_items(
+        orderItemID,
+        quantity,
+        price,
+        productID,
+        products(productName, price)
+      )
+    `
+
+    const legacy = await supabase.from('orders').select(legacySelect)
+    data = legacy.data
+    error = legacy.error
+    if (error) console.warn('[orders] legacySelect (no payments) failed:', error.message)
   }
 
   if (error) throw error
+
+  console.log('[orders] query succeeded, rows:', Array.isArray(data) ? data.length : 0)
 
   const rows = Array.isArray(data) ? data : []
   const mapped = rows.map((r) => mapOrderRowToUi(r, { includeServedFlag: !completed }))

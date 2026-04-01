@@ -70,7 +70,10 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
   const subtotal = useMemo(() => {
     if (!order) return 0
     return (order.items || []).reduce(
-      (sum, it) => sum + Number(it.price || 0) * Number(it.qty || 0),
+      (sum, it) => {
+        const addonTotal = (it.selectedAddons || []).reduce((a, ad) => a + Number(ad.price || 0), 0)
+        return sum + (Number(it.price || 0) + addonTotal) * Number(it.qty || 0)
+      },
       0,
     )
   }, [order])
@@ -140,10 +143,14 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
         orderID,
         status,
         paymentstatus,
+        sessionID,
+        queueNumber,
+        discountType,
         order_items(
           orderItemID,
           quantity,
           price,
+          selectedAddons,
           products(productName, price, image_path)
         )
       `
@@ -161,10 +168,14 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
           orderID,
           status,
           paymentstatus,
+          sessionID,
+          queueNumber,
+          discountType,
           order_items(
             orderItemID,
             quantity,
             price,
+            selectedAddons,
             products(productName, price)
           )
         `
@@ -196,10 +207,28 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
         const qty = Number(oi?.quantity || 0)
         const price = Number(oi?.price ?? productObj?.price ?? 0)
         const id = oi?.orderItemID != null ? String(oi.orderItemID) : `${idNum}-${name}`
-        return { id, name, image, qty, price }
+        const selectedAddons = Array.isArray(oi?.selectedAddons) ? oi.selectedAddons : []
+        return { id, name, image, qty, price, selectedAddons }
       })
 
-      setOrder({ id: data.orderID, status: data.status, paymentstatus: data.paymentstatus, items })
+      const customerDiscountType = data.discountType || 'None'
+      const isCustomerOrder = data.sessionID != null
+
+      // F1: Auto-apply customer discount; staff can still toggle freely
+      if (customerDiscountType !== 'None') {
+        setDiscountApplied(true)
+      }
+
+      setOrder({
+        id: data.orderID,
+        status: data.status,
+        paymentstatus: data.paymentstatus,
+        items,
+        sessionID: data.sessionID || null,
+        queueNumber: data.queueNumber || null,
+        discountType: customerDiscountType,
+        isCustomerOrder,
+      })
     } catch (err) {
       console.error('Failed to load order:', err)
       setError('Failed to fetch order. Please try again.')
@@ -340,6 +369,20 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
 
               {error ? <div className="payment-error">{error}</div> : null}
 
+              {order?.queueNumber ? (
+                <div className="payment-queue-info">
+                  Queue: <strong>{order.queueNumber}</strong>
+                  {order.isCustomerOrder ? <span className="payment-customer-badge">Customer Order</span> : null}
+                </div>
+              ) : null}
+
+              {order?.isCustomerOrder && order?.discountType !== 'None' ? (
+                <div className="payment-discount-warning">
+                  ⚠ Customer applied <strong>{order.discountType}</strong> discount (20%).
+                  {discountApplied ? '' : ' Currently removed by staff.'}
+                </div>
+              ) : null}
+
               <div className="payment-item-header">
                 <div className="payment-item-col name">Item</div>
                 <div className="payment-item-col price">Price</div>
@@ -354,8 +397,17 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
                   {(order.items || []).map((it) => (
                     <div key={it.id} className="payment-item-row">
                       <img className="payment-item-img" src={it.image || placeholderSvg} alt={it.name} loading="lazy" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = placeholderSvg }} />
-                      <div className="payment-item-name">{it.name}</div>
-                      <div className="payment-item-price">₱ {formatMoney(Number(it.price || 0) * Number(it.qty || 0))}</div>
+                      <div className="payment-item-name">
+                        {it.name}
+                        {(it.selectedAddons || []).length > 0 ? (
+                          <div className="payment-item-addons">
+                            {it.selectedAddons.map((addon) => (
+                              <span key={addon.id} className="payment-addon-tag">+ {addon.name}{addon.price > 0 ? ` (₱${formatMoney(addon.price)})` : ''}</span>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="payment-item-price">₱ {formatMoney((Number(it.price || 0) + (it.selectedAddons || []).reduce((a, ad) => a + Number(ad.price || 0), 0)) * Number(it.qty || 0))}</div>
                       <div className="payment-item-qty">{it.qty}</div>
                     </div>
                   ))}
@@ -369,12 +421,15 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
               <div className="payment-summary-title">Subtotal</div>
 
               <div className="payment-summary-lines">
-                {(order?.items || []).map((it) => (
-                  <div key={it.id} className="payment-summary-line">
-                    <span className="payment-summary-line-name">{it.name} x{it.qty}</span>
-                    <span className="payment-summary-line-amount">₱ {formatMoney(Number(it.price || 0) * Number(it.qty || 0))}</span>
-                  </div>
-                ))}
+                {(order?.items || []).map((it) => {
+                  const addonTotal = (it.selectedAddons || []).reduce((a, ad) => a + Number(ad.price || 0), 0)
+                  return (
+                    <div key={it.id} className="payment-summary-line">
+                      <span className="payment-summary-line-name">{it.name} x{it.qty}</span>
+                      <span className="payment-summary-line-amount">₱ {formatMoney((Number(it.price || 0) + addonTotal) * Number(it.qty || 0))}</span>
+                    </div>
+                  )
+                })}
               </div>
 
               <div className="payment-summary-total-row">

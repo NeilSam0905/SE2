@@ -481,3 +481,47 @@
     justify-self: start;
   }
 }
+
+/* ── Discount warning / Queue info / Addons (F1, F2, F3) ── */
+.payment-discount-warning {
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: #f57f17;
+  font-weight: 500;
+}
+
+.payment-queue-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.payment-customer-badge {
+  background: #fff3e0;
+  color: #e65100;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 10px;
+}
+
+.payment-item-addons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+}
+
+.payment-addon-tag {
+  background: #f3e5f5;
+  color: #7b1fa2;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 6px;
+}

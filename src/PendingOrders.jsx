@@ -64,7 +64,10 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
 
   const ordersWithTotals = useMemo(() => {
     return orders.map((o) => {
-      const total = o.items.reduce((sum, it) => sum + Number(it.price || 0) * Number(it.qty || 0), 0)
+      const total = o.items.reduce((sum, it) => {
+        const addonTotal = (it.selectedAddons || []).reduce((a, addon) => a + Number(addon.price || 0), 0)
+        return sum + (Number(it.price || 0) + addonTotal) * Number(it.qty || 0)
+      }, 0)
       const servedCount = o.items.filter((it) => it.served).length
       const totalCount = o.items.length
       return { ...o, total, servedCount, totalCount }
@@ -148,7 +151,9 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
                 >
                   <div className="order-card-order">
                     <span className="order-link">Order #{o.id}</span>
+                    {o.queueNumber ? <span className="order-card-queue">{o.queueNumber}</span> : null}
                     {o.orderType ? <span className="order-card-type">{o.orderType}</span> : null}
+                    {o.isCustomerOrder ? <span className="order-card-customer-badge">Customer</span> : null}
                   </div>
                   <div className="order-card-total">₱ {formatMoney(o.total)}</div>
                   <div className="order-card-status">
@@ -180,9 +185,18 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
               </button>
 
               <div className="details-title">Order Details:</div>
-              <div className="details-order">Order #{selectedOrder.id}</div>
+              <div className="details-order">
+                Order #{selectedOrder.id}
+                {selectedOrder.isCustomerOrder ? <span className="details-customer-badge">Customer Order</span> : null}
+              </div>
+              {selectedOrder.queueNumber ? (
+                <div className="details-queue">Queue: {selectedOrder.queueNumber}</div>
+              ) : null}
               {selectedOrder.orderType ? (
                 <div className="details-order-type">Order Type: {selectedOrder.orderType}</div>
+              ) : null}
+              {selectedOrder.discountType && selectedOrder.discountType !== 'None' ? (
+                <div className="details-discount-info">Discount: {selectedOrder.discountType} (20%)</div>
               ) : null}
               <div className="details-status">
                 {selectedOrder.servedCount === selectedOrder.totalCount
@@ -204,10 +218,17 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
                     </div>
                     <div className="item-main">
                       <div className="item-name">{it.name}</div>
+                      {(it.selectedAddons || []).length > 0 ? (
+                        <div className="item-addons">
+                          {it.selectedAddons.map((addon) => (
+                            <span key={addon.id} className="item-addon-tag">+ {addon.name}{addon.price > 0 ? ` (₱${formatMoney(addon.price)})` : ''}</span>
+                          ))}
+                        </div>
+                      ) : null}
                       <div className="item-qty">Qty. {it.qty}</div>
                     </div>
                     <div className="item-right">
-                      <div className="item-price">₱ {formatMoney(Number(it.price || 0) * Number(it.qty || 0))}</div>
+                      <div className="item-price">₱ {formatMoney((Number(it.price || 0) + (it.selectedAddons || []).reduce((a, ad) => a + Number(ad.price || 0), 0)) * Number(it.qty || 0))}</div>
                       <button
                         type="button"
                         className={`serve-btn ${it.served ? 'served' : 'unserved'}`}

@@ -654,3 +654,56 @@
   }
 }
 
+/* ── Queue / Customer / Addon badges (F3) ── */
+.order-card-queue {
+  background: #e3f2fd;
+  color: #1565c0;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: 6px;
+}
+
+.order-card-customer-badge {
+  background: #fff3e0;
+  color: #e65100;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: 6px;
+}
+
+.details-customer-badge {
+  background: #fff3e0;
+  color: #e65100;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 10px;
+  margin-left: 8px;
+}
+
+.details-queue {
+  font-size: 14px;
+  color: #1565c0;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.item-addons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.item-addon-tag {
+  background: #f3e5f5;
+  color: #7b1fa2;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 6px;
+}
+

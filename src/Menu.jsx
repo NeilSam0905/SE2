@@ -60,7 +60,9 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
     price: '',
     status: 'AVAILABLE',
     type: 'Meat',
-    image: placeholderSvg
+    image: placeholderSvg,
+    description: '',
+    isBestSeller: false,
   })
 
   const [newProductImageFile, setNewProductImageFile] = useState(null)
@@ -85,7 +87,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
   // --- 1. READ (Fetch from Supabase) ---
   const fetchProducts = async () => {
     try {
-      const preferredSelect = 'product_sid, productID, productName, price, status, type, image_path, image_url, image'
+      const preferredSelect = 'product_sid, productID, productName, price, status, type, image_path, image_url, image, description, is_best_seller'
       let { data, error } = await supabase.from('products').select(preferredSelect).eq('is_current', true).order('productID', { ascending: true })
 
       // Backward-compatible fallback if the DB doesn't have the new image columns yet.
@@ -107,6 +109,8 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
           type: normalizeProductType(p.type),
           imagePath: p.image_path || null,
           image: buildProductImageUrl(p),
+          description: p.description || '',
+          isBestSeller: Boolean(p.is_best_seller),
         }))
         setProducts(mappedData)
 
@@ -206,7 +210,9 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
       price: Number(newProduct.price),
       status: newProduct.status,
       type: newProduct.type,
-      is_current: true
+      is_current: true,
+      description: newProduct.description || null,
+      is_best_seller: Boolean(newProduct.isBestSeller),
     }
 
     const { data: created, error } = await supabase
@@ -258,6 +264,8 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
       status: editingProduct.status,
       type: editingProduct.type,
       image_path: editingProduct.imagePath || null,
+      description: editingProduct.description || null,
+      is_best_seller: Boolean(editingProduct.isBestSeller),
     }
 
     const { error: updateError } = await supabase
@@ -335,7 +343,9 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
       price: '',
       status: 'AVAILABLE',
       type: 'Meat',
-      image: '/product1.jpg'
+      image: '/product1.jpg',
+      description: '',
+      isBestSeller: false,
     })
     setNewProductImageFile(null)
     setShowAddModal(true)
@@ -590,6 +600,16 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
                     <div className="price-error">Price must be greater than 0</div>
                   )}
                 </div>
+                <div className="form-group">
+                  <label>DESCRIPTION</label>
+                  <textarea className="modal-textarea" value={newProduct.description} onChange={(e) => setNewProduct({...newProduct, description: e.target.value})} placeholder="Product description (shown to customers)" rows={3} />
+                </div>
+                <div className="form-group form-checkbox-group">
+                  <label className="checkbox-label">
+                    <input type="checkbox" checked={newProduct.isBestSeller} onChange={(e) => setNewProduct({...newProduct, isBestSeller: e.target.checked})} />
+                    Best Seller
+                  </label>
+                </div>
                 <button className="save-btn" onClick={handleRequestAddSave}>
                   <img src={ADD_PRODUCT_BUTTON_ICON} alt="" className="save-icon-img" /> SAVE PRODUCT
                 </button>
@@ -648,6 +668,16 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
                   {editingProduct.price !== '' && Number(editingProduct.price) <= 0 && (
                     <div className="price-error">Price must be greater than 0</div>
                   )}
+                </div>
+                <div className="form-group">
+                  <label>DESCRIPTION</label>
+                  <textarea className="modal-textarea" value={editingProduct.description || ''} onChange={(e) => setEditingProduct({...editingProduct, description: e.target.value})} placeholder="Product description (shown to customers)" rows={3} />
+                </div>
+                <div className="form-group form-checkbox-group">
+                  <label className="checkbox-label">
+                    <input type="checkbox" checked={editingProduct.isBestSeller || false} onChange={(e) => setEditingProduct({...editingProduct, isBestSeller: e.target.checked})} />
+                    Best Seller
+                  </label>
                 </div>
                 <button className="save-btn save-edit" onClick={handleRequestEditSave}>
                   <img src={ADD_PRODUCT_BUTTON_ICON} alt="" className="save-icon-img" /> SAVE EDIT

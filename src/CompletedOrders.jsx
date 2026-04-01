@@ -67,7 +67,10 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
 
     return orders
       .map((o) => {
-        const total = o.items.reduce((sum, it) => sum + Number(it.price || 0) * Number(it.qty || 0), 0)
+        const total = o.items.reduce((sum, it) => {
+          const addonTotal = (it.selectedAddons || []).reduce((a, addon) => a + Number(addon.price || 0), 0)
+          return sum + (Number(it.price || 0) + addonTotal) * Number(it.qty || 0)
+        }, 0)
         const completedAt = o.completeTimestamp || null
         const dateObj = new Date(completedAt || o.date)
         const within24h = completedAt && Number.isFinite(dateObj.getTime()) ? dateObj.getTime() >= cutoff : false
@@ -306,6 +309,8 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
                 >
                   <div className="order-card-order">
                     <span className="order-link">Order #{o.id}</span>
+                    {o.queueNumber ? <span className="order-card-queue">{o.queueNumber}</span> : null}
+                    {o.isCustomerOrder ? <span className="order-card-customer-badge">Customer</span> : null}
                   </div>
                   <div className="order-card-total">₱ {formatMoney(o.total)}</div>
                   <div className="order-card-status">
@@ -326,7 +331,13 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
               </button>
 
               <div className="details-title">Order Details:</div>
-              <div className="details-order">Order #{selectedOrder.id}</div>
+              <div className="details-order">
+                Order #{selectedOrder.id}
+                {selectedOrder.isCustomerOrder ? <span className="details-customer-badge">Customer Order</span> : null}
+              </div>
+              {selectedOrder.queueNumber ? (
+                <div className="details-queue">Queue: {selectedOrder.queueNumber}</div>
+              ) : null}
               <div className="details-sub">
                 <span>{selectedOrder.dateObj.toLocaleDateString()}</span>
               </div>
@@ -343,10 +354,17 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
                     />
                     <div className="item-main">
                       <div className="item-name">{it.name}</div>
+                      {(it.selectedAddons || []).length > 0 ? (
+                        <div className="item-addons">
+                          {it.selectedAddons.map((addon) => (
+                            <span key={addon.id} className="item-addon-tag">+ {addon.name}{addon.price > 0 ? ` (₱${formatMoney(addon.price)})` : ''}</span>
+                          ))}
+                        </div>
+                      ) : null}
                       <div className="item-qty">Qty. {it.qty}</div>
                     </div>
                     <div className="item-right">
-                      <div className="item-price">₱ {formatMoney(Number(it.price || 0) * Number(it.qty || 0))}</div>
+                      <div className="item-price">₱ {formatMoney((Number(it.price || 0) + (it.selectedAddons || []).reduce((a, ad) => a + Number(ad.price || 0), 0)) * Number(it.qty || 0))}</div>
                     </div>
                   </div>
                 ))}
