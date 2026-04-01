@@ -606,8 +606,8 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
                 </div>
                 <div className="form-group form-checkbox-group">
                   <label className="checkbox-label">
+                    <span>Best Seller</span>
                     <input type="checkbox" checked={newProduct.isBestSeller} onChange={(e) => setNewProduct({...newProduct, isBestSeller: e.target.checked})} />
-                    Best Seller
                   </label>
                 </div>
                 <button className="save-btn" onClick={handleRequestAddSave}>
@@ -675,8 +675,8 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
                 </div>
                 <div className="form-group form-checkbox-group">
                   <label className="checkbox-label">
+                    <span>Best Seller</span>
                     <input type="checkbox" checked={editingProduct.isBestSeller || false} onChange={(e) => setEditingProduct({...editingProduct, isBestSeller: e.target.checked})} />
-                    Best Seller
                   </label>
                 </div>
                 <button className="save-btn save-edit" onClick={handleRequestEditSave}>
