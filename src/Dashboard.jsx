@@ -640,6 +640,10 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
 
   const hasMostSold = filteredCategorizedMostSold.length > 0
 
+  const hasAnyData = useMemo(() => {
+    return filteredOrders.length > 0 || filteredPayments.length > 0
+  }, [filteredOrders, filteredPayments])
+
   const trendData = useMemo(() => {
     const list = Array.isArray(trendPayments) ? trendPayments : []
 
@@ -813,11 +817,12 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
                           day === now.getDate() &&
                           selectedDate.getMonth() === now.getMonth() &&
                           selectedDate.getFullYear() === now.getFullYear()
+                        const isSelected = day === selectedDate.getDate()
 
                         days.push(
                           <div
                             key={day}
-                            className={`calendar-day ${isToday ? 'today' : ''}`}
+                            className={`calendar-day ${isSelected ? 'selected' : ''} ${isToday && !isSelected ? 'today' : ''}`}
                             onClick={() => {
                               const newDate = new Date(selectedDate)
                               newDate.setDate(day)
@@ -967,6 +972,11 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
         </div>
 
         {/* First Section */}
+        {!hasAnyData && (
+          <div className="dashboard-no-data-banner">
+            No data available for this period.
+          </div>
+        )}
         <div className="dashboard-section-wrapper">
           <div className="stats-grid">
             <div className="stat-card">
@@ -1060,7 +1070,7 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
                     </div>
                   </>
                 ) : (
-                  <div className="dashboard-empty-note">Nothing to show here.</div>
+                  <div className="dashboard-empty-note">No Data Available</div>
                 )}
               </div>
             </div>
@@ -1139,7 +1149,7 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
                     </div>
                   ))
                 ) : (
-                  <div className="dashboard-empty-note">Nothing to show here.</div>
+                  <div className="dashboard-empty-note">No Data Available</div>
                 )}
               </div>
             </div>

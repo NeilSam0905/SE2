@@ -20,6 +20,7 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
 
   const [duplicateUserModal, setDuplicateUserModal] = useState({ open: false, name: '' })
   const [samePasswordModal, setSamePasswordModal] = useState(false)
+  const [selfDemoteModal, setSelfDemoteModal] = useState(false)
 
   const [users, setUsers] = useState([])
 
@@ -145,6 +146,8 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
     }
     return changes.length ? changes.join('\n') : 'No changes detected.'
   }
+
+  const isEditingSelf = editingUser && normalizeName(editingUser.name) === normalizeName(userName)
 
   const addSaveDisabled = !newUser.name.trim() || !String(newUser.password || '').trim()
   const editSaveDisabled = !editingUser?.name?.trim()
@@ -584,6 +587,17 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
                   className="save-btn save-edit"
                   type="button"
                   onClick={async () => {
+                    // Block self-demotion: if the admin is editing their own account
+                    // and changing their role away from Admin, show a warning.
+                    if (
+                      isEditingSelf &&
+                      originalUser &&
+                      String(originalUser.role || '').toLowerCase() === 'admin' &&
+                      String(editingUser.role || '').toLowerCase() !== 'admin'
+                    ) {
+                      setSelfDemoteModal(true)
+                      return
+                    }
                     // With Supabase Auth, we can't compare hashes client-side.
                     // Skip same-password check; proceed to confirmation.
                     openSaveConfirm('edit')
@@ -639,6 +653,19 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
         confirmText="OK"
         onCancel={() => setSamePasswordModal(false)}
         onConfirm={() => setSamePasswordModal(false)}
+      />
+
+      <ConfirmModal
+        open={selfDemoteModal}
+        title="Cannot Change Own Role"
+        message="You cannot demote your own account. Please ask another admin to change your role."
+        showCancel={false}
+        confirmText="OK"
+        onCancel={() => setSelfDemoteModal(false)}
+        onConfirm={() => {
+          setSelfDemoteModal(false)
+          setEditingUser((prev) => prev ? { ...prev, role: originalUser?.role || 'Admin' } : prev)
+        }}
       />
     </div>
   )

@@ -65,6 +65,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
 
   const [newProductImageFile, setNewProductImageFile] = useState(null)
   const [editingProductImageFile, setEditingProductImageFile] = useState(null)
+  const [isSaving, setIsSaving] = useState(false)
 
   const [products, setProducts] = useState([])
   const [previousPrices, setPreviousPrices] = useState({})
@@ -234,7 +235,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
     setShowAddModal(false)
   }
 
-  // --- 4. UPDATE PRODUCT (Edit) ---
+  // --- 4. UPDATE PRODUCT (Edit – in-place update, no SCD row duplication) ---
   const handleSaveEdit = async () => {
     const trimmedName = String(editingProduct?.name || '').trim()
     if (trimmedName) {
@@ -250,37 +251,30 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
       if (existingI?.length) throw new Error('Another product with the same name already exists in the menu.')
     }
 
- // 🔴 CHANGED: Expire the old version
-    const { error: expireError } = await supabase
+    // Update the existing current row in-place
+    const updatePayload = {
+      productName: trimmedName,
+      price: Number(editingProduct.price),
+      status: editingProduct.status,
+      type: editingProduct.type,
+      image_path: editingProduct.imagePath || null,
+    }
+
+    const { error: updateError } = await supabase
       .from('products')
-      .update({ is_current: false }) 
+      .update(updatePayload)
       .eq('productID', editingProduct.id)
-      .eq('is_current', true) 
+      .eq('is_current', true)
 
-    if (expireError) throw expireError
-
-    const { data: newVersion, error: insertError } = await supabase
-      .from('products')
-      .insert({
-        productID: editingProduct.id, 
-        productName: trimmedName,
-        price: Number(editingProduct.price),
-        status: editingProduct.status,
-        type: editingProduct.type,
-        is_current: true,
-        image_path: editingProduct.imagePath || null 
-      })
-      .select('product_sid')
-      .single()
-
-    if (insertError) throw insertError
+    if (updateError) throw updateError
 
     if (editingProductImageFile) {
       const uploaded = await uploadProductImage({ file: editingProductImageFile, productId: editingProduct.id })
       const { error: imgError } = await supabase
         .from('products')
         .update({ image_path: uploaded.path })
-        .eq('product_sid', newVersion.product_sid) 
+        .eq('productID', editingProduct.id)
+        .eq('is_current', true)
 
       if (imgError) throw imgError
     }
@@ -375,6 +369,8 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
   }
 
   const runConfirmedSave = async () => {
+    if (isSaving) return
+    setIsSaving(true)
     try {
       if (confirmState.mode === 'add') {
         await handleSaveNewProduct()
@@ -402,13 +398,27 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
         message: String(err?.message || err || 'Unknown error'),
       })
     } finally {
+      setIsSaving(false)
       closeSaveConfirm()
     }
   }
 
+  const MAX_IMAGE_SIZE_MB = 5
+  const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024
+
   const handleImageUpload = (e, isEdit = false) => {
     const file = e.target.files && e.target.files[0]
     if (!file) return
+
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      setResultState({
+        open: true,
+        title: 'Image Too Large',
+        message: `The selected image is ${(file.size / (1024 * 1024)).toFixed(1)} MB. Please choose an image smaller than ${MAX_IMAGE_SIZE_MB} MB.`,
+      })
+      e.target.value = ''
+      return
+    }
 
     const previewUrl = URL.createObjectURL(file)
     if (isEdit) {
@@ -576,6 +586,9 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
                     <span className="price-prefix">₱</span>
                     <input type="number" min="0" step="0.01" value={newProduct.price} onChange={(e) => setNewProduct({...newProduct, price: e.target.value})} placeholder="150.00" />
                   </div>
+                  {newProduct.price !== '' && Number(newProduct.price) <= 0 && (
+                    <div className="price-error">Price must be greater than 0</div>
+                  )}
                 </div>
                 <button className="save-btn" onClick={handleRequestAddSave}>
                   <img src={ADD_PRODUCT_BUTTON_ICON} alt="" className="save-icon-img" /> SAVE PRODUCT
@@ -632,6 +645,9 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
                     <span className="price-prefix">₱</span>
                     <input type="number" min="0" step="0.01" value={editingProduct.price} onChange={(e) => setEditingProduct({...editingProduct, price: e.target.value})} placeholder="150.00" />
                   </div>
+                  {editingProduct.price !== '' && Number(editingProduct.price) <= 0 && (
+                    <div className="price-error">Price must be greater than 0</div>
+                  )}
                 </div>
                 <button className="save-btn save-edit" onClick={handleRequestEditSave}>
                   <img src={ADD_PRODUCT_BUTTON_ICON} alt="" className="save-icon-img" /> SAVE EDIT
@@ -642,7 +658,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
         </div>
       )}
 
-      <ConfirmModal open={confirmState.open} title="Are you sure you want to save?" message={confirmState.mode === 'add' ? `Add product: ${newProduct.name || '—'}\nPrice: ₱ ${Number(newProduct.price || 0).toFixed(2)}\nStatus: ${newProduct.status}` : `Update product: ${editingProduct?.name || '—'}\n\n${buildEditSummary()}`} cancelText="Cancel" confirmText={saveDisabled ? 'Fix fields' : 'Yes'} onCancel={closeSaveConfirm} onConfirm={() => { if (saveDisabled) return; runConfirmedSave(); }} />
+      <ConfirmModal open={confirmState.open} title="Are you sure you want to save?" message={confirmState.mode === 'add' ? `Add product: ${newProduct.name || '—'}\nPrice: ₱ ${Number(newProduct.price || 0).toFixed(2)}\nStatus: ${newProduct.status}` : `Update product: ${editingProduct?.name || '—'}\n\n${buildEditSummary()}`} cancelText="Cancel" confirmText={isSaving ? 'Saving…' : saveDisabled ? 'Fix fields' : 'Yes'} onCancel={closeSaveConfirm} onConfirm={() => { if (saveDisabled || isSaving) return; runConfirmedSave(); }} />
 
       <ConfirmModal open={resultState.open} title={resultState.title} message={resultState.message} showCancel={false} confirmText="OK" onConfirm={() => setResultState({ open: false, title: '', message: '' })} />
     </div>

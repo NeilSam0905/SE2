@@ -99,9 +99,14 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
     return { value: Math.abs(delta), negative: true }
   }, [amountReceivedNum, isCash, order, total])
 
+  const isZeroTotal = order && total === 0
+
   const canComplete = useMemo(() => {
     if (!order) return false
     if (loading) return false
+
+    // Zero-total orders can always be completed
+    if (total === 0) return true
 
     if (isCash) {
       if (!Number.isFinite(amountReceivedNum)) return false
@@ -400,9 +405,15 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
                   type="text"
                   inputMode="decimal"
                   value={amountReceived}
-                  onChange={(e) => setAmountReceived(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    // Allow empty, or numbers with up to 2 decimal places
+                    if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                      setAmountReceived(val)
+                    }
+                  }}
                   placeholder={isGcash ? formatMoney(total) : '0.00'}
-                  disabled={!order || isGcash}
+                  disabled={!order || isGcash || isZeroTotal}
                 />
               </div>
 
@@ -473,9 +484,18 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
               type="text"
               inputMode="numeric"
               value={gcashRefDraft}
-              onChange={(e) => setGcashRefDraft(e.target.value)}
+              onChange={(e) => {
+                // Strip non-numeric characters
+                const numericOnly = e.target.value.replace(/[^0-9]/g, '')
+                setGcashRefDraft(numericOnly)
+              }}
               placeholder="e.g. 1754903891"
             />
+            {gcashRefDraft.length > 0 && !GCashRefPattern.test(gcashRefDraft) && (
+              <div className="payment-modal-digit-hint">
+                Please enter exactly 13 digits ({gcashRefDraft.length}/13)
+              </div>
+            )}
             <div className="payment-modal-subrow">
               <div className="payment-modal-sub">Order# {order ? order.id : '—'}</div>
               <button

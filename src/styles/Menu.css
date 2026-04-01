@@ -364,6 +364,10 @@
   color: #000;
   text-decoration: underline;
   cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
 }
 
 /* Scrollbar (match Dashboard) */
@@ -677,6 +681,13 @@
   font-weight: 600;
   color: #000;
   background-color: transparent;
+}
+
+.price-error {
+  margin-top: 0.3rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #b00020;
 }
 
 .save-icon-img {
