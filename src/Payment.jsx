@@ -3,6 +3,8 @@ import Navbar from './elements/Navbar'
 import ConfirmModal from './elements/ConfirmModal'
 import './styles/Payment.css'
 import { supabase, getPublicStorageUrl, PRODUCT_IMAGE_BUCKET } from './lib/supabaseClient'
+import { ProcessPaymentDTO } from './data/dto'
+import { guardDto } from './data/guards'
 import { formatMoney } from './utils/numberFormat'
 import placeholderSvg from '/placeholder.svg'
 
@@ -270,6 +272,18 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
         setError('Please complete the required payment details first.')
         return
       }
+
+      const dto = new ProcessPaymentDTO({
+        orderId: order.id,
+        paymentMethod: isGcash ? 'GCash' : 'Cash',
+        amountReceived: isCash ? amountReceivedNum : null,
+        gcashRef: isGcash ? gcashRef : null,
+        discountType: order.discountType ?? 'None',
+        subtotal,
+        discount,
+        total,
+      })
+      guardDto(dto)
 
       const nowIso = new Date().toISOString()
 

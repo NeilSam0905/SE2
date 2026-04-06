@@ -1,4 +1,6 @@
 import { getPublicStorageUrl, PRODUCT_IMAGE_BUCKET, supabase } from '../lib/supabaseClient'
+import { SetOrderPaymentStatusDTO } from './dto'
+import { guardDto } from './guards'
 
 const normalize = (value) => String(value ?? '').trim().toLowerCase().replace(/[^a-z]/g, '')
 
@@ -257,6 +259,8 @@ export async function fetchOrdersWithItems({ completed }) {
 }
 
 export async function markOrderCompleted(orderId) {
+  const id = Number(orderId)
+  if (!Number.isFinite(id) || id <= 0) throw new Error('markOrderCompleted: orderId must be a positive number')
   const nowIso = new Date().toISOString()
 
   // If the order was already paid before completion, do not overwrite it.
@@ -294,10 +298,15 @@ export async function markOrderCompleted(orderId) {
 }
 
 export async function setOrderPaymentStatus({ orderId, paymentstatus }) {
+  const dto = new SetOrderPaymentStatusDTO({ paymentstatus })
+  guardDto(dto)
+  const id = Number(orderId)
+  if (!Number.isFinite(id) || id <= 0) throw new Error('setOrderPaymentStatus: orderId must be a positive number')
+
   const { error } = await supabase
     .from('orders')
-    .update({ paymentstatus })
-    .eq('orderID', orderId)
+    .update({ paymentstatus: dto.paymentstatus })
+    .eq('orderID', id)
 
   if (error) throw error
 }
@@ -349,13 +358,17 @@ export async function setOrderPaidStatus({ orderId, paid, subtotal }) {
   if (error) throw error
 }
 
-export function subscribeToOrderRelatedChanges(onChange) {
+export function subscribeToOrderRelatedChanges(onChange, onReconnect) {
   const channel = supabase
     .channel(`orders-watch-${Math.random().toString(16).slice(2)}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, onChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, onChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, onChange)
-    .subscribe()
+    .subscribe((status) => {
+      // When the channel (re)connects after a drop, trigger a full refresh so
+      // any changes missed during the outage are picked up immediately.
+      if (status === 'SUBSCRIBED' && onReconnect) onReconnect()
+    })
 
   return () => {
     supabase.removeChannel(channel)

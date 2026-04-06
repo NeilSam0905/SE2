@@ -48,13 +48,16 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
   useEffect(() => {
     loadOrders()
 
-    const unsubscribe = subscribeToOrderRelatedChanges(() => {
-      // Batch bursts of changes into a single refresh.
-      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
-      refreshTimerRef.current = setTimeout(() => {
-        loadOrders()
-      }, 150)
-    })
+    const unsubscribe = subscribeToOrderRelatedChanges(
+      () => {
+        // Batch bursts of changes into a single refresh.
+        if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+        refreshTimerRef.current = setTimeout(() => {
+          loadOrders()
+        }, 150)
+      },
+      () => loadOrders(), // re-fetch on reconnect to catch missed changes
+    )
 
     return () => {
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)

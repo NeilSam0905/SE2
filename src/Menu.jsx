@@ -2,7 +2,13 @@ import { useMemo, useState, useEffect } from 'react'
 import Navbar from './elements/Navbar'
 import './styles/Menu.css'
 import ConfirmModal from './elements/ConfirmModal'
-import { getPublicStorageUrl, PRODUCT_IMAGE_BUCKET, supabase, uploadProductImage } from './lib/supabaseClient'
+import {
+  fetchProducts as fetchProductsFromDb,
+  fetchPreviousPrices,
+  createProduct,
+  updateProduct,
+  updateProductStatus,
+} from './data/products'
 import { ADD_PRODUCT_BUTTON_ICON } from './utils/publicAsset'
 import placeholderSvg from '/placeholder.svg'
 
@@ -30,19 +36,6 @@ const PRODUCT_TYPE_OPTIONS = [
   { key: 'Drinks', label: 'Drinks' },
   { key: 'Others', label: 'Others' },
 ]
-
-const buildProductImageUrl = (row) => {
-  const imagePath = row?.image_path || row?.imagePath
-  if (imagePath) return getPublicStorageUrl(PRODUCT_IMAGE_BUCKET, imagePath)
-
-  const imageUrl = row?.image_url || row?.imageUrl
-  if (imageUrl) return imageUrl
-
-  const legacy = row?.image
-  if (legacy) return legacy
-
-  return null
-}
 
 function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User' }) {
   const [showAddModal, setShowAddModal] = useState(false)
@@ -87,60 +80,20 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
   // --- 1. READ (Fetch from Supabase) ---
   const fetchProducts = async () => {
     try {
-      const preferredSelect = 'product_sid, productID, productName, price, status, type, image_path, image_url, image, description, is_best_seller'
-      let { data, error } = await supabase.from('products').select(preferredSelect).eq('is_current', true).order('productID', { ascending: true })
+      const mappedData = await fetchProductsFromDb()
+      setProducts(mappedData)
 
-      // Backward-compatible fallback if the DB doesn't have the new image columns yet.
-      if (error) {
-        const fallback = await supabase.from('products').select('*').eq('is_current', true).order('productID', { ascending: true })
-        data = fallback.data
-        error = fallback.error
+      try {
+        const prevMap = await fetchPreviousPrices()
+        setPreviousPrices(prevMap)
+      } catch {
+        // ignore history fetch failures
       }
 
-      if (error) throw error
-      
-      if (data) {
-        const mappedData = data.map(p => ({
-          id: p.productID,
-          sid: p.product_sid,
-          name: p.productName,
-          price: p.price,
-          status: p.status,
-          type: normalizeProductType(p.type),
-          imagePath: p.image_path || null,
-          image: buildProductImageUrl(p),
-          description: p.description || '',
-          isBestSeller: Boolean(p.is_best_seller),
-        }))
-        setProducts(mappedData)
-
-        // Fetch previous (non-current) prices for each product to show on hover
-        try {
-          const { data: historyData } = await supabase
-            .from('products')
-            .select('productID, price, created_at')
-            .eq('is_current', false)
-            .order('created_at', { ascending: false })
-
-          if (historyData) {
-            const prevMap = {}
-            for (const row of historyData) {
-              // Only keep the most recent previous price per productID
-              if (!prevMap[row.productID]) {
-                prevMap[row.productID] = row.price
-              }
-            }
-            setPreviousPrices(prevMap)
-          }
-        } catch {
-          // ignore history fetch failures
-        }
-
-        try {
-          localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: mappedData }))
-        } catch {
-          // ignore cache failures
-        }
+      try {
+        localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: mappedData }))
+      } catch {
+        // ignore cache failures
       }
     } catch (err) {
       console.error('Error fetching products:', err.message)
@@ -167,126 +120,28 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
 
   // --- 2. UPDATE STATUS ---
   const handleStatusChange = async (id, newStatus) => {
-    setProducts(products.map(product => 
+    // Optimistic update
+    setProducts(products.map(product =>
       product.id === id ? { ...product, status: newStatus } : product
     ))
-
-    const { error } = await supabase
-      .from('products')
-      .update({ status: newStatus })
-      .eq('productID', id)
-      .eq('is_current', true)
-
-    if (error) fetchProducts() 
+    try {
+      await updateProductStatus(userRole, id, newStatus)
+    } catch (err) {
+      console.error('Status update failed:', err.message)
+      fetchProducts() // revert optimistic update
+    }
   }
 
-  // --- 3. CREATE PRODUCT (With dynamic ID fix) ---
+  // --- 3. CREATE PRODUCT ---
   const handleSaveNewProduct = async () => {
-    const trimmedName = String(newProduct.name || '').trim()
-    if (trimmedName) {
-      const { data: existingEq, error: existingEqError } = await supabase
-        .from('products')
-        .select('productID')
-        .eq('productName', trimmedName)
-        .eq('is_current', true)
-        .limit(1)
-
-      if (existingEqError) throw existingEqError
-      if (existingEq?.length) throw new Error('Product already exists in the menu.')
-
-      const { data: existingI, error: existingIError } = await supabase
-        .from('products')
-        .select('productID')
-        .ilike('productName', trimmedName)
-        .eq('is_current', true)
-        .limit(1)
-
-      if (existingIError) throw existingIError
-      if (existingI?.length) throw new Error('Product already exists in the menu.')
-    }
-
-    const insertPayload = {
-      productName: trimmedName,
-      price: Number(newProduct.price),
-      status: newProduct.status,
-      type: newProduct.type,
-      is_current: true,
-      description: newProduct.description || null,
-      is_best_seller: Boolean(newProduct.isBestSeller),
-    }
-
-    const { data: created, error } = await supabase
-      .from('products')
-      .insert([insertPayload])
-      .select('productID')
-      .single()
-
-    if (error) throw error
-
-    const createdId = created?.productID
-    if (createdId == null) throw new Error('Insert succeeded but no productID was returned')
-
-    if (newProductImageFile) {
-      const uploaded = await uploadProductImage({ file: newProductImageFile, productId: createdId })
-      const { error: imgError } = await supabase
-        .from('products')
-        .update({ image_path: uploaded.path })
-        .eq('productID', createdId)
-        .eq('is_current', true)
-
-      if (imgError) throw imgError
-    }
-
+    await createProduct(userRole, newProduct, newProductImageFile)
     await fetchProducts()
     setShowAddModal(false)
   }
 
-  // --- 4. UPDATE PRODUCT (Edit – in-place update, no SCD row duplication) ---
+  // --- 4. UPDATE PRODUCT ---
   const handleSaveEdit = async () => {
-    const trimmedName = String(editingProduct?.name || '').trim()
-    if (trimmedName) {
-      const { data: existingI, error: existingIError } = await supabase
-        .from('products')
-        .select('productID')
-        .ilike('productName', trimmedName)
-        .neq('productID', editingProduct.id)
-        .eq('is_current', true)
-        .limit(1)
-
-      if (existingIError) throw existingIError
-      if (existingI?.length) throw new Error('Another product with the same name already exists in the menu.')
-    }
-
-    // Update the existing current row in-place
-    const updatePayload = {
-      productName: trimmedName,
-      price: Number(editingProduct.price),
-      status: editingProduct.status,
-      type: editingProduct.type,
-      image_path: editingProduct.imagePath || null,
-      description: editingProduct.description || null,
-      is_best_seller: Boolean(editingProduct.isBestSeller),
-    }
-
-    const { error: updateError } = await supabase
-      .from('products')
-      .update(updatePayload)
-      .eq('productID', editingProduct.id)
-      .eq('is_current', true)
-
-    if (updateError) throw updateError
-
-    if (editingProductImageFile) {
-      const uploaded = await uploadProductImage({ file: editingProductImageFile, productId: editingProduct.id })
-      const { error: imgError } = await supabase
-        .from('products')
-        .update({ image_path: uploaded.path })
-        .eq('productID', editingProduct.id)
-        .eq('is_current', true)
-
-      if (imgError) throw imgError
-    }
-
+    await updateProduct(userRole, editingProduct.id, editingProduct, editingProductImageFile)
     await fetchProducts()
     setShowEditModal(false)
   }

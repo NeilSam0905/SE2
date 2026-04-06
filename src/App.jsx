@@ -205,12 +205,12 @@ function App() {
     }
   }
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     const fallbackIdRaw = localStorage.getItem('userId')
     const fallbackId = fallbackIdRaw != null ? Number(fallbackIdRaw) : null
     const id = userId ?? (Number.isFinite(fallbackId) ? fallbackId : null)
-    if (id != null) await setOnlineStatus(id, false)
-    await supabase.auth.signOut()
+
+    // Clear local state immediately so the UI responds even if the network is down.
     setIsLoggedIn(false)
     setUserId(null)
     setUserRole('admin')
@@ -218,6 +218,10 @@ function App() {
     setCurrentPage('dashboard')
     setName('')
     setPassword('')
+
+    // Fire-and-forget — don't block logout on network availability.
+    if (id != null) setOnlineStatus(id, false).catch(() => {})
+    supabase.auth.signOut().catch(() => {})
   }
 
   const handleNavigate = (page) => {

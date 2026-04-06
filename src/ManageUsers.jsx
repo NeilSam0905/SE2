@@ -3,7 +3,7 @@ import Navbar from './elements/Navbar'
 import './styles/ManageUsers.css'
 import { formatInteger } from './utils/numberFormat'
 import ConfirmModal from './elements/ConfirmModal'
-import { supabase, supabaseNoSession, toAuthEmail } from './lib/supabaseClient'
+import { fetchUsers, createUser, updateUser } from './data/users'
 import { ADD_PRODUCT_BUTTON_ICON } from './utils/publicAsset'
 
 function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User' }) {
@@ -55,12 +55,8 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
 
   const getUsers = async () => {
     try {
-      const { data, error } = await supabase.from('users').select('*').order('id', { ascending: true })
-      if (error) {
-        console.error('Error fetching users:', error)
-        return
-      }
-      setUsers((data || []).map(normalizeUser).filter(Boolean))
+      const data = await fetchUsers(userRole)
+      setUsers(data)
     } catch (error) {
       console.error('Error fetching users:', error)
     }
@@ -98,26 +94,13 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
     setShowAddModal(true)
   }
 
-  const handleAttemptAddUserSave = async () => {
+  const handleAttemptAddUserSave = () => {
     const proposedName = String(newUser.name || '').trim()
     if (!proposedName) return
 
-    // Fast local check (covers most cases without a network call).
     if (isDuplicateUserName(proposedName)) {
       setDuplicateUserModal({ open: true, name: proposedName })
       return
-    }
-
-    // Defensive server-side check (prevents duplicates if the list is stale).
-    try {
-      const { data, error } = await supabase.from('users').select('id, name').ilike('name', proposedName).limit(1)
-      if (!error && (data || []).length) {
-        setDuplicateUserModal({ open: true, name: proposedName })
-        return
-      }
-    } catch (error) {
-      // If the check fails, we still allow the user to proceed to the normal confirmation.
-      console.error('Duplicate user check failed:', error)
     }
 
     openSaveConfirm('add')
@@ -154,104 +137,49 @@ function ManageUsers({ onLogout, onNavigate, userRole = 'admin', userName = 'Adm
 
   const runConfirmedSave = async () => {
     if (confirmState.mode === 'add') {
-      const trimmed = {
-        name: newUser.name.trim(),
-        role: newUser.role,
-        // 'Inactive' means enabled but logged out; new users always start Inactive.
-        status: 'Inactive',
-        password: String(newUser.password || '').trim(),
-      }
-
-      // Re-check duplicates right before insert (guards against race conditions).
       try {
-        const { data, error } = await supabase.from('users').select('id, name').ilike('name', trimmed.name).limit(1)
-        if (!error && (data || []).length) {
-          closeSaveConfirm()
-          setDuplicateUserModal({ open: true, name: trimmed.name })
-          return
-        }
-      } catch (error) {
-        console.error('Duplicate user re-check failed:', error)
-      }
-
-      try {
-        // Create Supabase Auth user (non-persistent client keeps admin session intact).
-        const email = toAuthEmail(trimmed.name)
-        const plainPassword = trimmed.password
-
-        const { data: signUpData, error: signUpError } = await supabaseNoSession.auth.signUp({
-          email,
-          password: plainPassword,
-          options: { data: { display_name: trimmed.name, role: trimmed.role } },
+        await createUser(userRole, {
+          name: newUser.name,
+          role: newUser.role,
+          password: String(newUser.password || ''),
         })
-
-        if (signUpError) {
-          console.error('Supabase Auth signUp error:', signUpError)
-          alert('Error creating user account: ' + signUpError.message)
-          return
-        }
-
-        const authId = signUpData.user?.id || null
-
-        const { error } = await supabase.from('users').insert([{
-          name: trimmed.name,
-          role: trimmed.role,
-          status: trimmed.status,
-          auth_id: authId,
-        }])
-        if (error) {
-          console.error('Supabase insert error:', error)
-          alert('Error adding user: ' + error.message)
-          return
-        }
         setShowAddModal(false)
         closeSaveConfirm()
         setNewUser({ name: '', role: 'Staff', active: true, password: '' })
         await getUsers()
-      } catch (error) {
-        console.error('Error adding user:', error)
-        alert('Error adding user')
+      } catch (err) {
+        if (err.code === 'DUPLICATE_NAME') {
+          closeSaveConfirm()
+          setDuplicateUserModal({ open: true, name: err.duplicateName })
+          return
+        }
+        console.error('Error adding user:', err)
+        alert('Error adding user: ' + err.message)
       }
       return
     }
 
     if (confirmState.mode === 'edit' && editingUser) {
-      const updatePayload = {
-        name: String(editingUser.name || '').trim(),
-        role: editingUser.role,
-        status: editingUser.active ? 'Inactive' : 'Deactivated',
-      }
-
-      const nextPassword = String(editingUser.password || '').trim()
-
       try {
-        const { error } = await supabase.from('users').update(updatePayload).eq('id', editingUser.id)
-        if (error) {
-          console.error('Supabase update error:', error)
-          alert('Error updating user: ' + error.message)
-          return
-        }
-
-        // If the password was changed, update it in Supabase Auth.
-        // This only works if the edited user is the currently logged-in user.
-        // For other users, an Edge Function with service_role is needed.
-        if (nextPassword) {
-          const { data: { user: currentAuthUser } } = await supabase.auth.getUser()
-          const editEmail = toAuthEmail(editingUser.name)
-          if (currentAuthUser?.email === editEmail) {
-            await supabase.auth.updateUser({ password: nextPassword })
-          } else {
-            console.warn('Password updated in users table only. Supabase Auth password for other users requires an Edge Function.')
-          }
-        }
+        await updateUser(
+          userRole,
+          editingUser.id,
+          {
+            name: editingUser.name,
+            role: editingUser.role,
+            active: editingUser.active,
+            password: String(editingUser.password || '').trim() || null,
+          },
+          userName,
+        )
         setShowEditModal(false)
         setEditingUser(null)
         setOriginalUser(null)
         closeSaveConfirm()
         await getUsers()
-      } catch (error) {
-        console.error('Error updating user:', error)
-        alert('Error updating user')
+      } catch (err) {
+        console.error('Error updating user:', err)
+        alert('Error updating user: ' + err.message)
       }
     }
   }

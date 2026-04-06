@@ -345,12 +345,15 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
 
     refresh()
 
-    const unsubscribe = subscribeToOrderRelatedChanges(() => {
-      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
-      refreshTimerRef.current = setTimeout(() => {
-        refresh()
-      }, 200)
-    })
+    const unsubscribe = subscribeToOrderRelatedChanges(
+      () => {
+        if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+        refreshTimerRef.current = setTimeout(() => {
+          refresh()
+        }, 200)
+      },
+      () => refresh(), // re-fetch on reconnect to catch missed changes
+    )
 
     return () => {
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)

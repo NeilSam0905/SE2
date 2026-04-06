@@ -33,12 +33,15 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
   useEffect(() => {
     loadOrders()
 
-    const unsubscribe = subscribeToOrderRelatedChanges(() => {
-      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
-      refreshTimerRef.current = setTimeout(() => {
-        loadOrders()
-      }, 150)
-    })
+    const unsubscribe = subscribeToOrderRelatedChanges(
+      () => {
+        if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+        refreshTimerRef.current = setTimeout(() => {
+          loadOrders()
+        }, 150)
+      },
+      () => loadOrders(), // re-fetch on reconnect to catch missed changes
+    )
 
     return () => {
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
