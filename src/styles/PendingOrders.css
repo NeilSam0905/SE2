@@ -142,8 +142,12 @@
   background: #fff;
 }
 
+.pending-orders-page .status-pill.paid {
+  color: #1f9d1f;
+}
+
 .pending-orders-page .status-pill.unpaid {
-  color: #1f2a44;
+  color: #c1121f;
 }
 
 .pending-orders-page .order-details-panel {

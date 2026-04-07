@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Navbar from './elements/Navbar'
+import ConfirmModal from './elements/ConfirmModal'
 import './styles/CompletedOrders.css'
 import { formatMoney } from './utils/numberFormat'
 import { fetchOrdersWithItems, setOrderPaidStatus, subscribeToOrderRelatedChanges } from './data/orders'
@@ -55,6 +56,8 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
   const historyPageSize = 20
 
   const [historySearch, setHistorySearch] = useState('')
+
+  const [confirmUnpaidOrderId, setConfirmUnpaidOrderId] = useState(null)
 
   const [exportFormat, setExportFormat] = useState('csv')
   const [exportPeriod, setExportPeriod] = useState('monthly')
@@ -148,6 +151,16 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
       console.error('Failed to update payment status:', e)
       setLoadError('Failed to update payment status.')
       loadOrders()
+    }
+  }
+
+  const requestTogglePaid = (orderId) => {
+    const target = orders.find((o) => o.id === orderId)
+    if (!target) return
+    if (target.paid) {
+      setConfirmUnpaidOrderId(orderId)
+    } else {
+      togglePaid(orderId)
     }
   }
 
@@ -385,7 +398,7 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
                 <button
                   type="button"
                   className={`paid-toggle ${selectedOrder.paid ? 'paid' : 'unpaid'}`}
-                  onClick={() => togglePaid(selectedOrder.id)}
+                  onClick={() => requestTogglePaid(selectedOrder.id)}
                 >
                   {selectedOrder.paid ? 'MARK AS UNPAID' : 'MARK AS PAID'}
                 </button>
@@ -438,7 +451,7 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
                       <button
                         type="button"
                         className={`status-pill ${o.paid ? 'paid' : 'unpaid'} clickable`}
-                        onClick={() => togglePaid(o.id)}
+                        onClick={() => requestTogglePaid(o.id)}
                         aria-label="Toggle paid status"
                       >
                         {o.paid ? 'PAID' : 'UNPAID'}
@@ -562,6 +575,19 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
           </div>
         ) : null}
       </div>
+
+      <ConfirmModal
+        open={confirmUnpaidOrderId !== null}
+        title="Mark as Unpaid"
+        message={`Are you sure you want to mark Order #${confirmUnpaidOrderId} as unpaid?`}
+        confirmText="Yes, Mark Unpaid"
+        cancelText="Cancel"
+        onCancel={() => setConfirmUnpaidOrderId(null)}
+        onConfirm={() => {
+          togglePaid(confirmUnpaidOrderId)
+          setConfirmUnpaidOrderId(null)
+        }}
+      />
     </div>
   )
 }

@@ -169,7 +169,7 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
                         ? 'Status: Done'
                         : `Status: ${o.servedCount}/${o.totalCount} Preparing`}
                     </div>
-                    <div className="status-pill unpaid">{o.paid ? 'PAID' : 'UNPAID'}</div>
+                    <div className={`status-pill ${o.paid ? 'paid' : 'unpaid'}`}>{o.paid ? 'PAID' : 'UNPAID'}</div>
                   </div>
                 </button>
               ))}

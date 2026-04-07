@@ -7,6 +7,15 @@ const normalize = (value) => String(value ?? '').trim().toLowerCase().replace(/[
 const COMPLETED_STATUSES = new Set(['completed', 'complete', 'done', 'served', 'closed', 'finished'])
 const PAID_STATUSES = new Set(['paid', 'settled', 'complete'])
 
+// Simple in-memory cache so switching pages doesn't re-fetch from scratch.
+// Cache entries expire after CACHE_TTL ms and are invalidated by realtime changes.
+const CACHE_TTL = 5000
+const _ordersCache = new Map()
+
+export function invalidateOrdersCache() {
+  _ordersCache.clear()
+}
+
 export const isCompletedStatus = (value) => COMPLETED_STATUSES.has(normalize(value))
 
 const isPaidStatus = (value) => PAID_STATUSES.has(normalize(value))
@@ -101,6 +110,12 @@ const mapOrderRowToUi = (row, { includeServedFlag = false } = {}) => {
 }
 
 export async function fetchOrdersWithItems({ completed }) {
+  const cacheKey = completed ? 'completed' : 'pending'
+  const cached = _ordersCache.get(cacheKey)
+  if (cached && Date.now() - cached.ts < CACHE_TTL) {
+    return cached.data
+  }
+
   const baseSelect = `
       orderID,
       orderType,
@@ -255,6 +270,8 @@ export async function fetchOrdersWithItems({ completed }) {
     return tb - ta
   })
 
+  _ordersCache.set(cacheKey, { data: filtered, ts: Date.now() })
+
   return filtered
 }
 
@@ -361,9 +378,9 @@ export async function setOrderPaidStatus({ orderId, paid, subtotal }) {
 export function subscribeToOrderRelatedChanges(onChange, onReconnect) {
   const channel = supabase
     .channel(`orders-watch-${Math.random().toString(16).slice(2)}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, onChange)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, onChange)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, onChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => { invalidateOrdersCache(); onChange() })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, () => { invalidateOrdersCache(); onChange() })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => { invalidateOrdersCache(); onChange() })
     .subscribe((status) => {
       // When the channel (re)connects after a drop, trigger a full refresh so
       // any changes missed during the outage are picked up immediately.

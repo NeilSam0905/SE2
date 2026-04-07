@@ -16,7 +16,10 @@ function App() {
     const saved = localStorage.getItem('isLoggedIn')
     return saved ? JSON.parse(saved) : false
   })
-  const [currentPage, setCurrentPage] = useState('dashboard')
+  const [currentPage, setCurrentPage] = useState(() => {
+    const saved = localStorage.getItem('currentPage')
+    return saved || 'dashboard'
+  })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [userRole, setUserRole] = useState(() => {
@@ -38,6 +41,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('isLoggedIn', JSON.stringify(isLoggedIn))
   }, [isLoggedIn])
+
+  useEffect(() => {
+    localStorage.setItem('currentPage', currentPage)
+  }, [currentPage])
 
   useEffect(() => {
     localStorage.setItem('userRole', userRole)
@@ -97,7 +104,11 @@ function App() {
           setUserRole(role)
           setUserName(profile.name || 'User')
           setIsLoggedIn(true)
-          setCurrentPage(role === 'admin' ? 'dashboard' : 'pending')
+          // Only set a default page if there isn't a saved page already
+          const savedPage = localStorage.getItem('currentPage')
+          if (!savedPage) {
+            setCurrentPage(role === 'admin' ? 'dashboard' : 'pending')
+          }
         }
       }
 
@@ -118,10 +129,14 @@ function App() {
 
     try {
       const email = toAuthEmail(name)
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
+
+      const authResult = await Promise.race([
+        supabase.auth.signInWithPassword({ email, password }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Connection timed out. The server may be unavailable.')), 15000)
+        ),
+      ])
+      const { data: authData, error: authError } = authResult
 
       if (authError) {
         setError('Invalid name or password')
@@ -216,6 +231,7 @@ function App() {
     setUserRole('admin')
     setUserName('Admin User')
     setCurrentPage('dashboard')
+    localStorage.removeItem('currentPage')
     setName('')
     setPassword('')
 
