@@ -6,6 +6,7 @@ const normalize = (value) => String(value ?? '').trim().toLowerCase().replace(/[
 
 const COMPLETED_STATUSES = new Set(['completed', 'complete', 'done', 'served', 'closed', 'finished'])
 const PAID_STATUSES = new Set(['paid', 'settled', 'complete'])
+const PREPARING_STATUSES = new Set(['preparing'])
 
 // Simple in-memory cache so switching pages doesn't re-fetch from scratch.
 // Cache entries expire after CACHE_TTL ms and are invalidated by realtime changes.
@@ -19,6 +20,8 @@ export function invalidateOrdersCache() {
 export const isCompletedStatus = (value) => COMPLETED_STATUSES.has(normalize(value))
 
 const isPaidStatus = (value) => PAID_STATUSES.has(normalize(value))
+
+export const isPreparingStatus = (value) => PREPARING_STATUSES.has(normalize(value))
 
 const getField = (obj, keys) => {
   if (!obj) return undefined
@@ -310,6 +313,20 @@ export async function markOrderCompleted(orderId) {
     .from('orders')
     .update({ status: 'Completed', completeTimestamp: nowIso, paymentstatus: nextPaymentStatus })
     .eq('orderID', orderId)
+
+  if (error) throw error
+}
+
+export async function markOrderPreparing(orderId) {
+  const id = Number(orderId)
+  if (!Number.isFinite(id) || id <= 0) throw new Error('markOrderPreparing: orderId must be a positive number')
+
+  invalidateOrdersCache()
+
+  const { error } = await supabase
+    .from('orders')
+    .update({ status: 'Preparing' })
+    .eq('orderID', id)
 
   if (error) throw error
 }

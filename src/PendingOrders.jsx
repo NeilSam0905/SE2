@@ -3,7 +3,7 @@ import Navbar from './elements/Navbar'
 import ConfirmModal from './elements/ConfirmModal'
 import './styles/PendingOrders.css'
 import { formatMoney } from './utils/numberFormat'
-import { fetchOrdersWithItems, markOrderCompleted, subscribeToOrderRelatedChanges } from './data/orders'
+import { fetchOrdersWithItems, markOrderCompleted, markOrderPreparing, isPreparingStatus, subscribeToOrderRelatedChanges } from './data/orders'
 import placeholderSvg from '/placeholder.svg'
 
 function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User' }) {
@@ -73,7 +73,8 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
       }, 0)
       const servedCount = o.items.filter((it) => it.served).length
       const totalCount = o.items.length
-      return { ...o, total, servedCount, totalCount }
+      const isPreparing = isPreparingStatus(o.status)
+      return { ...o, total, servedCount, totalCount, isPreparing }
     })
   }, [orders])
 
@@ -120,6 +121,16 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
     setShowAllServedConfirm(true)
   }
 
+  const handleMarkPreparing = async (orderId) => {
+    try {
+      await markOrderPreparing(orderId)
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status: 'Preparing' } : o)))
+    } catch (e) {
+      console.error('Failed to mark order as preparing:', e)
+      setLoadError('Failed to mark order as preparing.')
+    }
+  }
+
   return (
     <div className={`page-container pending-orders-page ${drawerOpen ? 'drawer-open' : ''}`}>
       <Navbar
@@ -162,12 +173,14 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
                   <div className="order-card-status">
                     <div
                       className={`order-card-status-text ${
-                        o.servedCount === o.totalCount ? 'done' : 'preparing'
+                        o.servedCount === o.totalCount ? 'done' : o.isPreparing ? 'preparing' : 'pending-status'
                       }`}
                     >
                       {o.servedCount === o.totalCount
                         ? 'Status: Done'
-                        : `Status: ${o.servedCount}/${o.totalCount} Preparing`}
+                        : o.isPreparing
+                          ? `Status: ${o.servedCount}/${o.totalCount} Preparing`
+                          : 'Status: Pending'}
                     </div>
                     <div className={`status-pill ${o.paid ? 'paid' : 'unpaid'}`}>{o.paid ? 'PAID' : 'UNPAID'}</div>
                   </div>
@@ -204,7 +217,9 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
               <div className="details-status">
                 {selectedOrder.servedCount === selectedOrder.totalCount
                   ? 'Status: Done'
-                  : `Status: ${selectedOrder.servedCount}/${selectedOrder.totalCount} Served`}
+                  : selectedOrder.isPreparing
+                    ? `Status: ${selectedOrder.servedCount}/${selectedOrder.totalCount} Served`
+                    : 'Status: Pending'}
               </div>
 
               <div className="details-items">
@@ -253,6 +268,11 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
                   <span>Order Type:</span>
                   <span className="details-type">{selectedOrder.orderType}</span>
                 </div>
+                {!selectedOrder.isPreparing ? (
+                  <button type="button" className="mark-preparing-btn" onClick={() => handleMarkPreparing(selectedOrder.id)}>
+                    MARK AS PREPARING
+                  </button>
+                ) : null}
                 <button type="button" className="all-served-btn" onClick={() => requestCompleteOrder(selectedOrder.id)}>
                   ALL SERVED
                 </button>

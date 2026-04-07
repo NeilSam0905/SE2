@@ -130,6 +130,10 @@
   color: #c77700;
 }
 
+.pending-orders-page .order-card-status-text.pending-status {
+  color: #888;
+}
+
 .pending-orders-page .order-card-status-text.done {
   color: #1f9d1f;
 }
@@ -324,6 +328,23 @@
 .pending-orders-page .details-type {
   color: #d90000;
   font-weight: 900;
+}
+
+.pending-orders-page .mark-preparing-btn {
+  width: 100%;
+  margin-top: 0.5rem;
+  border: 2px solid #c77700;
+  border-radius: 999px;
+  padding: 0.65rem 1rem;
+  font-weight: 900;
+  cursor: pointer;
+  background: #c77700;
+  color: #fff;
+}
+
+.pending-orders-page .mark-preparing-btn:hover {
+  background: #a86200;
+  border-color: #a86200;
 }
 
 .pending-orders-page .all-served-btn {
