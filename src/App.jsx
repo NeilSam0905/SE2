@@ -103,12 +103,8 @@ function App() {
           setUserId(uid)
           setUserRole(role)
           setUserName(profile.name || 'User')
+          setCurrentPage(role === 'admin' ? 'dashboard' : 'pending')
           setIsLoggedIn(true)
-          // Only set a default page if there isn't a saved page already
-          const savedPage = localStorage.getItem('currentPage')
-          if (!savedPage) {
-            setCurrentPage(role === 'admin' ? 'dashboard' : 'pending')
-          }
         }
       }
 
