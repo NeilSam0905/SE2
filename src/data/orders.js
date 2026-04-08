@@ -7,6 +7,7 @@ const normalize = (value) => String(value ?? '').trim().toLowerCase().replace(/[
 const COMPLETED_STATUSES = new Set(['completed', 'complete', 'done', 'served', 'closed', 'finished'])
 const PAID_STATUSES = new Set(['paid', 'settled', 'complete'])
 const PREPARING_STATUSES = new Set(['preparing'])
+const CANCELLED_STATUSES = new Set(['cancelled', 'canceled'])
 
 // Simple in-memory cache so switching pages doesn't re-fetch from scratch.
 // Cache entries expire after CACHE_TTL ms and are invalidated by realtime changes.
@@ -22,6 +23,8 @@ export const isCompletedStatus = (value) => COMPLETED_STATUSES.has(normalize(val
 const isPaidStatus = (value) => PAID_STATUSES.has(normalize(value))
 
 export const isPreparingStatus = (value) => PREPARING_STATUSES.has(normalize(value))
+
+export const isCancelledStatus = (value) => CANCELLED_STATUSES.has(normalize(value))
 
 const getField = (obj, keys) => {
   if (!obj) return undefined
@@ -56,6 +59,7 @@ const mapOrderRowToUi = (row, { includeServedFlag = false } = {}) => {
   const sessionID = getField(row, ['sessionID', 'session_id']) || null
   const queueNumber = getField(row, ['queueNumber', 'queue_number']) || null
   const discountType = getField(row, ['discountType', 'discount_type']) || 'None'
+  const cancelledBy = getField(row, ['cancelled_by', 'cancelledBy']) || null
   const isCustomerOrder = sessionID != null
 
   const orderItems = row?.order_items || row?.orderItems || []
@@ -107,13 +111,14 @@ const mapOrderRowToUi = (row, { includeServedFlag = false } = {}) => {
     sessionID,
     queueNumber,
     discountType,
+    cancelledBy,
     isCustomerOrder,
     items,
   }
 }
 
 export async function fetchOrdersWithItems({ completed }) {
-  const cacheKey = completed ? 'completed' : 'pending'
+  const cacheKey = completed === 'cancelled' ? 'cancelled' : completed ? 'completed' : 'pending'
   const cached = _ordersCache.get(cacheKey)
   if (cached && Date.now() - cached.ts < CACHE_TTL) {
     return cached.data
@@ -129,6 +134,7 @@ export async function fetchOrdersWithItems({ completed }) {
       sessionID,
       queueNumber,
       discountType,
+      cancelled_by,
       order_items(
         orderItemID,
         quantity,
@@ -264,7 +270,11 @@ export async function fetchOrdersWithItems({ completed }) {
 
   const filtered = deduped.filter((o) => {
     const done = isCompletedStatus(o.status)
-    return completed ? done : !done
+    const cancelled = isCancelledStatus(o.status)
+    if (completed === 'cancelled') return cancelled
+    if (completed) return done
+    // Pending: exclude completed AND cancelled
+    return !done && !cancelled
   })
 
   filtered.sort((a, b) => {
@@ -326,6 +336,43 @@ export async function markOrderPreparing(orderId) {
   const { error } = await supabase
     .from('orders')
     .update({ status: 'Preparing' })
+    .eq('orderID', id)
+
+  if (error) throw error
+}
+
+export async function markOrderCancelled(orderId) {
+  const id = Number(orderId)
+  if (!Number.isFinite(id) || id <= 0) throw new Error('markOrderCancelled: orderId must be a positive number')
+
+  invalidateOrdersCache()
+
+  const { error } = await supabase
+    .from('orders')
+    .update({
+      status: 'Cancelled',
+      cancelled_at: new Date().toISOString(),
+      cancelled_by: 'staff',
+    })
+    .eq('orderID', id)
+
+  if (error) throw error
+}
+
+export async function uncancelOrder(orderId) {
+  const id = Number(orderId)
+  if (!Number.isFinite(id) || id <= 0) throw new Error('uncancelOrder: orderId must be a positive number')
+
+  invalidateOrdersCache()
+
+  const { error } = await supabase
+    .from('orders')
+    .update({
+      status: 'Pending',
+      cancelled_at: null,
+      cancelled_by: null,
+      cancellation_reason: null,
+    })
     .eq('orderID', id)
 
   if (error) throw error
@@ -393,18 +440,57 @@ export async function setOrderPaidStatus({ orderId, paid, subtotal }) {
 }
 
 export function subscribeToOrderRelatedChanges(onChange, onReconnect) {
-  const channel = supabase
-    .channel(`orders-watch-${Math.random().toString(16).slice(2)}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => { invalidateOrdersCache(); onChange() })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, () => { invalidateOrdersCache(); onChange() })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => { invalidateOrdersCache(); onChange() })
-    .subscribe((status) => {
-      // When the channel (re)connects after a drop, trigger a full refresh so
-      // any changes missed during the outage are picked up immediately.
-      if (status === 'SUBSCRIBED' && onReconnect) onReconnect()
-    })
+  let retryTimer = null
+  let retryCount = 0
+
+  const channelName = `orders-watch-${Math.random().toString(16).slice(2)}`
+
+  const setupChannel = () => {
+    const ch = supabase
+      .channel(channelName)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => { invalidateOrdersCache(); onChange() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, () => { invalidateOrdersCache(); onChange() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => { invalidateOrdersCache(); onChange() })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          retryCount = 0
+          if (onReconnect) onReconnect()
+        }
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          const delay = Math.min(1000 * 2 ** retryCount, 30000)
+          retryCount++
+          if (retryTimer) clearTimeout(retryTimer)
+          retryTimer = setTimeout(() => {
+            try { supabase.removeChannel(ch) } catch { /* ignore */ }
+            setupChannel()
+          }, delay)
+        }
+      })
+
+    return ch
+  }
+
+  let channel = setupChannel()
+
+  const handleVisible = () => {
+    if (document.visibilityState === 'visible') {
+      invalidateOrdersCache()
+      if (onReconnect) onReconnect()
+    }
+  }
+  const handleFocus = () => { invalidateOrdersCache(); if (onReconnect) onReconnect() }
+
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', handleVisible)
+    window.addEventListener('focus', handleFocus)
+  }
 
   return () => {
+    if (retryTimer) clearTimeout(retryTimer)
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', handleVisible)
+      window.removeEventListener('focus', handleFocus)
+    }
     supabase.removeChannel(channel)
   }
 }

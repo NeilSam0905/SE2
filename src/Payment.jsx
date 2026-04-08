@@ -17,6 +17,11 @@ const isPaidStatus = (value) => {
   return v === 'paid' || v === 'settled' || v === 'complete'
 }
 
+const isCancelledStatus = (value) => {
+  const v = normalize(value)
+  return v === 'cancelled' || v === 'canceled'
+}
+
 const coerceNumber = (raw) => {
   if (raw === null || raw === undefined) return NaN
   const s = String(raw)
@@ -39,6 +44,9 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
 
   const [showOrderNotFoundModal, setShowOrderNotFoundModal] = useState(false)
   const [notFoundOrderId, setNotFoundOrderId] = useState(null)
+
+  const [showCancelledModal, setShowCancelledModal] = useState(false)
+  const [cancelledOrderId, setCancelledOrderId] = useState(null)
 
   const [discountApplied, setDiscountApplied] = useState(false)
 
@@ -200,6 +208,12 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
         return
       }
 
+      if (isCancelledStatus(data.status)) {
+        setCancelledOrderId(idNum)
+        setShowCancelledModal(true)
+        return
+      }
+
       const rawItems = Array.isArray(data.order_items) ? data.order_items : []
       const items = rawItems.map((oi) => {
         const productObj = oi?.products || null
@@ -350,7 +364,7 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
           <div className="payment-left">
             <div className="payment-left-header">
               <form className="payment-top-row" onSubmit={loadOrderById}>
-                <div className="payment-order-label">Order #:</div>
+                <div className="payment-order-label">Order #:{order ? <span className="payment-order-live"> {order.id}</span> : null}</div>
                 <input
                   className="payment-order-input"
                   type="text"
@@ -634,6 +648,24 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
         onConfirm={() => {
           setShowOrderNotFoundModal(false)
           setNotFoundOrderId(null)
+        }}
+      />
+
+      <ConfirmModal
+        open={showCancelledModal}
+        title={
+          <>
+            Order Cancelled
+            <br />
+            Order #{cancelledOrderId ?? ''}
+          </>
+        }
+        message="This order has been cancelled and cannot accept payments."
+        showCancel={false}
+        confirmText="OK"
+        onConfirm={() => {
+          setShowCancelledModal(false)
+          setCancelledOrderId(null)
         }}
       />
     </div>

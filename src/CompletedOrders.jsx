@@ -16,18 +16,20 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
   const [loadError, setLoadError] = useState('')
 
   const [orders, setOrders] = useState([])
+  const initialLoadDone = useRef(false)
 
-  const loadOrders = async () => {
-    setLoading(true)
-    setLoadError('')
+  const loadOrders = async ({ silent = false } = {}) => {
+    if (!silent) { setLoading(true); setLoadError('') }
     try {
       const list = await fetchOrdersWithItems({ completed: true })
       setOrders(list)
+      if (!silent) setLoadError('')
     } catch (e) {
       console.error('Failed to load completed orders:', e)
-      setLoadError('Failed to load completed orders.')
+      if (!silent) setLoadError('Failed to load completed orders.')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
+      initialLoadDone.current = true
     }
   }
 
@@ -38,10 +40,10 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
       () => {
         if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
         refreshTimerRef.current = setTimeout(() => {
-          loadOrders()
+          loadOrders({ silent: true })
         }, 150)
       },
-      () => loadOrders(), // re-fetch on reconnect to catch missed changes
+      () => loadOrders({ silent: true }),
     )
 
     return () => {
@@ -312,7 +314,7 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
 
             <div className="order-cards">
               {loadError ? <div className="empty-note">{loadError}</div> : null}
-              {loading ? <div className="empty-note">Loading…</div> : null}
+              {loading && !initialLoadDone.current ? <div className="empty-note">Loading…</div> : null}
               {recentOrders.map((o) => (
                 <button
                   key={o.id}

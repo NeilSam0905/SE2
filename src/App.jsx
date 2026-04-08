@@ -130,12 +130,22 @@ function App() {
     try {
       const email = toAuthEmail(name)
 
-      const authResult = await Promise.race([
-        supabase.auth.signInWithPassword({ email, password }),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Connection timed out. The server may be unavailable.')), 15000)
-        ),
-      ])
+      const tryLogin = async (timeoutMs) => {
+        return Promise.race([
+          supabase.auth.signInWithPassword({ email, password }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Connection timed out. The server may be unavailable.')), timeoutMs)
+          ),
+        ])
+      }
+
+      let authResult
+      try {
+        authResult = await tryLogin(30000)
+      } catch {
+        // First attempt timed out — retry once with a longer timeout
+        authResult = await tryLogin(45000)
+      }
       const { data: authData, error: authError } = authResult
 
       if (authError) {
@@ -220,12 +230,12 @@ function App() {
     }
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     const fallbackIdRaw = localStorage.getItem('userId')
     const fallbackId = fallbackIdRaw != null ? Number(fallbackIdRaw) : null
     const id = userId ?? (Number.isFinite(fallbackId) ? fallbackId : null)
 
-    // Clear local state immediately so the UI responds even if the network is down.
+    // Clear local state immediately so the UI responds.
     setIsLoggedIn(false)
     setUserId(null)
     setUserRole('admin')
@@ -235,8 +245,8 @@ function App() {
     setName('')
     setPassword('')
 
-    // Fire-and-forget — don't block logout on network availability.
-    if (id != null) setOnlineStatus(id, false).catch(() => {})
+    // Await status update BEFORE signing out so the session is still valid for RLS.
+    if (id != null) await setOnlineStatus(id, false).catch(() => {})
     supabase.auth.signOut().catch(() => {})
   }
 

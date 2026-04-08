@@ -41,6 +41,11 @@
   text-decoration: underline;
 }
 
+.payment-order-live {
+  color: #d90000;
+  text-decoration: none;
+}
+
 .payment-top-row {
   display: grid;
   grid-template-columns: auto 140px auto auto;

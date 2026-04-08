@@ -459,12 +459,6 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
                   <label>DESCRIPTION</label>
                   <textarea className="modal-textarea" value={newProduct.description} onChange={(e) => setNewProduct({...newProduct, description: e.target.value})} placeholder="Product description (shown to customers)" rows={3} />
                 </div>
-                <div className="form-group form-checkbox-group">
-                  <label className="checkbox-label">
-                    <span>Best Seller</span>
-                    <input type="checkbox" checked={newProduct.isBestSeller} onChange={(e) => setNewProduct({...newProduct, isBestSeller: e.target.checked})} />
-                  </label>
-                </div>
                 <button className="save-btn" onClick={handleRequestAddSave}>
                   <img src={ADD_PRODUCT_BUTTON_ICON} alt="" className="save-icon-img" /> SAVE PRODUCT
                 </button>
@@ -527,12 +521,6 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
                 <div className="form-group">
                   <label>DESCRIPTION</label>
                   <textarea className="modal-textarea" value={editingProduct.description || ''} onChange={(e) => setEditingProduct({...editingProduct, description: e.target.value})} placeholder="Product description (shown to customers)" rows={3} />
-                </div>
-                <div className="form-group form-checkbox-group">
-                  <label className="checkbox-label">
-                    <span>Best Seller</span>
-                    <input type="checkbox" checked={editingProduct.isBestSeller || false} onChange={(e) => setEditingProduct({...editingProduct, isBestSeller: e.target.checked})} />
-                  </label>
                 </div>
                 <button className="save-btn save-edit" onClick={handleRequestEditSave}>
                   <img src={ADD_PRODUCT_BUTTON_ICON} alt="" className="save-icon-img" /> SAVE EDIT
