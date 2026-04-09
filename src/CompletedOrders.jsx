@@ -312,7 +312,7 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
               <div className="orders-list-col right">Status</div>
             </div>
 
-            <div className="order-cards">
+            <div className={`order-cards${isAdmin ? ' admin-view' : ''}`}>
               {loadError ? <div className="empty-note">{loadError}</div> : null}
               {loading && !initialLoadDone.current ? <div className="empty-note">Loading…</div> : null}
               {recentOrders.map((o) => (

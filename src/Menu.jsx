@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useCallback } from 'react'
 import Navbar from './elements/Navbar'
 import './styles/Menu.css'
 import ConfirmModal from './elements/ConfirmModal'
@@ -11,6 +11,7 @@ import {
 } from './data/products'
 import { ADD_PRODUCT_BUTTON_ICON } from './utils/publicAsset'
 import placeholderSvg from '/placeholder.svg'
+import { supabase } from './lib/supabaseClient'
 
 const PRODUCTS_CACHE_KEY = 'products_cache_v1'
 const PRODUCTS_CACHE_MAX_AGE_MS = 5 * 60 * 1000
@@ -65,6 +66,46 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
   const [products, setProducts] = useState([])
   const [previousPrices, setPreviousPrices] = useState({})
 
+  // --- Addons ---
+  const [addons, setAddons] = useState([])
+  const [addonsLoaded, setAddonsLoaded] = useState(false)
+  const [addonsError, setAddonsError] = useState('')
+  const [editingAddon, setEditingAddon] = useState(null)
+  const [addonSaving, setAddonSaving] = useState(false)
+
+  const fetchAddons = useCallback(async () => {
+    setAddonsError('')
+    const { data, error } = await supabase
+      .from('addons')
+      .select('id, name, price, is_available')
+      .order('name')
+    if (error) {
+      console.error('[addons] fetch error:', error.code, error.message, error.details)
+      setAddonsError(error.message || 'Unknown error')
+    } else {
+      setAddons(Array.isArray(data) ? data : [])
+    }
+    setAddonsLoaded(true)
+  }, [])
+
+  const handleSaveAddon = async () => {
+    if (!editingAddon || addonSaving) return
+    setAddonSaving(true)
+    try {
+      const { error } = await supabase
+        .from('addons')
+        .update({ price: Number(editingAddon.price), is_available: editingAddon.is_available })
+        .eq('id', editingAddon.id)
+      if (error) throw error
+      setAddons((prev) => prev.map((a) => a.id === editingAddon.id ? { ...a, price: Number(editingAddon.price), is_available: editingAddon.is_available } : a))
+      setEditingAddon(null)
+    } catch (err) {
+      console.error('Failed to save addon:', err.message)
+    } finally {
+      setAddonSaving(false)
+    }
+  }
+
   const duplicateNewProduct = useMemo(() => {
     const key = normalizeKey(newProduct.name)
     if (!key) return null
@@ -116,7 +157,8 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
     }
 
     fetchProducts()
-  }, [])
+    fetchAddons()
+  }, [fetchAddons])
 
   // --- 2. UPDATE STATUS ---
   const handleStatusChange = async (id, newStatus) => {
@@ -335,6 +377,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
                 {[
                   { key: 'ALL', label: 'All' },
                     ...PRODUCT_TYPE_OPTIONS.map((t) => ({ key: t.key, label: t.label })),
+                  { key: 'ADDONS', label: 'Addons' },
                 ].map((opt) => (
                   <button
                     key={opt.key}
@@ -401,7 +444,48 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
                 ))}
               </div>
             ))}
-          </div>
+            {/* Addons category — visible when filter is ALL or ADDONS */}
+            {(categoryFilter === 'ALL' || categoryFilter === 'ADDONS') && (
+              <div className="menu-category-group">
+                <div className="menu-category-header">
+                  <div className="menu-category-pill"><span>Addons</span></div>
+                </div>
+                {!addonsLoaded ? (
+                  <div className="menu-row" style={{ padding: '1rem 1.25rem', opacity: 0.6 }}>Loading addons…</div>
+                ) : addonsError ? (
+                  <div className="menu-row" style={{ padding: '1rem 1.25rem', color: '#c0392b' }}>Error loading addons: {addonsError}</div>
+                ) : addons.length === 0 ? (
+                  <div className="menu-row" style={{ padding: '1rem 1.25rem', opacity: 0.6 }}>No addons found. (Check the addons table exists and has data)</div>
+                ) : addons.map((addon) => (
+                  <div key={addon.id} className="menu-row menu-row-grid">
+                    <div className="menu-cell product-cell">
+                      <span className="product-name">{addon.name}</span>
+                    </div>
+                    <div className="menu-cell status-cell">
+                      <select
+                        value={addon.is_available ? 'AVAILABLE' : 'NOT AVAILABLE'}
+                        onChange={(e) => {
+                          const isAvail = e.target.value === 'AVAILABLE'
+                          setAddons((prev) => prev.map((a) => a.id === addon.id ? { ...a, is_available: isAvail } : a))
+                          supabase.from('addons').update({ is_available: isAvail }).eq('id', addon.id)
+                            .then(({ error }) => { if (error) { console.error(error.message); fetchAddons() } })
+                        }}
+                        className={`status-select ${addon.is_available ? 'available' : 'not-available'}`}
+                      >
+                        <option value="AVAILABLE">AVAILABLE</option>
+                        <option value="NOT AVAILABLE">NOT AVAILABLE</option>
+                      </select>
+                    </div>
+                    <div className="menu-cell price-cell">
+                      ₱ {Number(addon.price).toFixed(2)}
+                    </div>
+                    <div className="menu-cell action-cell">
+                      <button className="edit-btn" type="button" onClick={() => setEditingAddon({ ...addon })}>EDIT</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}          </div>
         </div>
       </div>
 
@@ -534,6 +618,57 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
       <ConfirmModal open={confirmState.open} title="Are you sure you want to save?" message={confirmState.mode === 'add' ? `Add product: ${newProduct.name || '—'}\nPrice: ₱ ${Number(newProduct.price || 0).toFixed(2)}\nStatus: ${newProduct.status}` : `Update product: ${editingProduct?.name || '—'}\n\n${buildEditSummary()}`} cancelText="Cancel" confirmText={isSaving ? 'Saving…' : saveDisabled ? 'Fix fields' : 'Yes'} onCancel={closeSaveConfirm} onConfirm={() => { if (saveDisabled || isSaving) return; runConfirmedSave(); }} />
 
       <ConfirmModal open={resultState.open} title={resultState.title} message={resultState.message} showCancel={false} confirmText="OK" onConfirm={() => setResultState({ open: false, title: '', message: '' })} />
+
+      {/* Edit Addon Modal */}
+      {editingAddon && (
+        <div className="modal-overlay" onClick={() => setEditingAddon(null)}>
+          <div className="modal-content" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>EDIT ADDON</h2>
+              <button className="exit-btn" onClick={() => setEditingAddon(null)}>EXIT ✕</button>
+            </div>
+            <div className="modal-body" style={{ flexDirection: 'column', gap: '1rem' }}>
+              <div className="form-group">
+                <label>ADDON NAME</label>
+                <input type="text" value={editingAddon.name} readOnly style={{ background: '#f0f0f0', cursor: 'not-allowed' }} />
+              </div>
+              <div className="form-group">
+                <label>AVAILABILITY</label>
+                <select
+                  value={editingAddon.is_available ? 'AVAILABLE' : 'NOT AVAILABLE'}
+                  onChange={(e) => setEditingAddon((prev) => ({ ...prev, is_available: e.target.value === 'AVAILABLE' }))}
+                  className={`modal-status-select ${editingAddon.is_available ? 'available' : 'not-available'}`}
+                >
+                  <option value="AVAILABLE">AVAILABLE</option>
+                  <option value="NOT AVAILABLE">NOT AVAILABLE</option>
+                </select>
+              </div>
+              <div className="form-group price-wide">
+                <label>PRICE</label>
+                <div className="price-input-group">
+                  <span className="price-prefix">₱</span>
+                  <input
+                    type="number" min="0" step="0.01"
+                    value={editingAddon.price}
+                    onChange={(e) => setEditingAddon((prev) => ({ ...prev, price: e.target.value }))}
+                    placeholder="0.00"
+                  />
+                </div>
+                {Number(editingAddon.price) < 0 && (
+                  <div className="price-error">Price cannot be negative</div>
+                )}
+              </div>
+              <button
+                className="save-btn"
+                onClick={handleSaveAddon}
+                disabled={addonSaving || Number(editingAddon.price) < 0}
+              >
+                {addonSaving ? 'SAVING…' : 'SAVE ADDON'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

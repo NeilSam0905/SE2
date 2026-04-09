@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './styles/App.css'
 import logoImage from '../images/Staff View.png'
 import Dashboard from './Dashboard.jsx'
@@ -37,6 +37,13 @@ function App() {
     const n = Number(saved)
     return Number.isFinite(n) ? n : null
   })
+
+  // Ref so the onAuthStateChange closure always reads the current logged-in
+  // state, not the stale mount-time value captured by the [] useEffect.
+  const isLoggedInRef = useRef(isLoggedIn)
+  useEffect(() => {
+    isLoggedInRef.current = isLoggedIn
+  }, [isLoggedIn])
 
   useEffect(() => {
     localStorage.setItem('isLoggedIn', JSON.stringify(isLoggedIn))
@@ -89,7 +96,7 @@ function App() {
   // Restore session from Supabase Auth on page reload.
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user && !isLoggedIn) {
+      if (event === 'SIGNED_IN' && session?.user && !isLoggedInRef.current) {
         const authId = session.user.id
         const { data: profile } = await supabase
           .from('users')

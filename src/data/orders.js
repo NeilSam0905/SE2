@@ -444,6 +444,8 @@ export function subscribeToOrderRelatedChanges(onChange, onReconnect) {
   let retryCount = 0
 
   const channelName = `orders-watch-${Math.random().toString(16).slice(2)}`
+  // Track the latest channel so retries don't leave zombie subscriptions.
+  const activeChannel = { current: null }
 
   const setupChannel = () => {
     const ch = supabase
@@ -453,16 +455,18 @@ export function subscribeToOrderRelatedChanges(onChange, onReconnect) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => { invalidateOrdersCache(); onChange() })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
+          const wasRetrying = retryCount > 0
           retryCount = 0
-          if (onReconnect) onReconnect()
+          // Only re-fetch on actual reconnect, not the initial connect.
+          if (wasRetrying && onReconnect) onReconnect()
         }
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           const delay = Math.min(1000 * 2 ** retryCount, 30000)
           retryCount++
           if (retryTimer) clearTimeout(retryTimer)
           retryTimer = setTimeout(() => {
-            try { supabase.removeChannel(ch) } catch { /* ignore */ }
-            setupChannel()
+            try { supabase.removeChannel(activeChannel.current) } catch { /* ignore */ }
+            activeChannel.current = setupChannel()
           }, delay)
         }
       })
@@ -470,7 +474,7 @@ export function subscribeToOrderRelatedChanges(onChange, onReconnect) {
     return ch
   }
 
-  let channel = setupChannel()
+  activeChannel.current = setupChannel()
 
   const handleVisible = () => {
     if (document.visibilityState === 'visible') {
@@ -491,6 +495,6 @@ export function subscribeToOrderRelatedChanges(onChange, onReconnect) {
       document.removeEventListener('visibilitychange', handleVisible)
       window.removeEventListener('focus', handleFocus)
     }
-    supabase.removeChannel(channel)
+    try { supabase.removeChannel(activeChannel.current) } catch { /* ignore */ }
   }
 }

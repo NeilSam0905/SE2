@@ -34,8 +34,10 @@ export const supabaseNoSession = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 // ── Connection keep-alive & recovery ──────────────────────────────────────────
-// Detect visibility changes (tab hidden / Electron minimised) and force
-// the realtime transport to reconnect when the window comes back.
+// Keeps the auth token fresh and the realtime transport alive.
+// In a desktop (Electron) app the session must stay active regardless of
+// whether the window is focused or minimised, so the keep-alive timer is
+// started once and never stopped.
 let _keepAliveTimer = null;
 
 const startKeepAlive = () => {
@@ -56,10 +58,6 @@ const startKeepAlive = () => {
 	}, 45_000); // every 45 seconds
 };
 
-const stopKeepAlive = () => {
-	if (_keepAliveTimer) { clearInterval(_keepAliveTimer); _keepAliveTimer = null; }
-};
-
 if (typeof document !== 'undefined') {
 	document.addEventListener('visibilitychange', async () => {
 		if (document.visibilityState === 'visible') {
@@ -67,24 +65,19 @@ if (typeof document !== 'undefined') {
 			try { await supabase.auth.refreshSession(); } catch { /* noop */ }
 			// Force all realtime channels to reconnect immediately.
 			try { supabase.realtime.connect(); } catch { /* already connected */ }
-			startKeepAlive();
-		} else {
-			stopKeepAlive();
 		}
 	});
-	// Also handle Electron-style focus/blur events
+	// Reconnect when the Electron window regains focus
 	window.addEventListener('focus', async () => {
 		try { await supabase.auth.refreshSession(); } catch { /* noop */ }
 		try { supabase.realtime.connect(); } catch { /* noop */ }
-		startKeepAlive();
 	});
-	window.addEventListener('blur', () => stopKeepAlive());
+	// Network came back (WiFi reconnected / wake from sleep)
 	window.addEventListener('online', async () => {
-		// Network came back (e.g. WiFi reconnected)
 		try { await supabase.auth.refreshSession(); } catch { /* noop */ }
 		try { supabase.realtime.connect(); } catch { /* noop */ }
-		startKeepAlive();
 	});
+	// Start once and never stop — the session must stay alive at all times.
 	startKeepAlive();
 }
 

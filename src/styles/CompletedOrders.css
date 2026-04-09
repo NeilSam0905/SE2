@@ -16,7 +16,6 @@
   align-items: stretch;
   flex: 0 0 auto;
   background: #f5e6d3;
-  max-height: 720px;
   overflow-x: hidden;
   overflow-y: visible;
   min-height: 0;
@@ -63,10 +62,17 @@
   padding-bottom: 6px;
   flex: 0 0 auto;
   min-height: 0;
-  overflow-y: auto;
+  overflow-y: visible;
   overflow-x: visible;
-  /* Shows roughly 3 cards, then scroll */
+}
+
+/* Admin: cap to ~3 cards then scroll */
+.completed-orders-page .order-cards.admin-view {
+  /* 3 cards × 140px + 2 gaps × 24px + 12px padding = 480px */
   max-height: 480px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 0.75rem;
 }
 
 .completed-orders-page .order-card {

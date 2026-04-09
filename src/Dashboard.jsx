@@ -119,22 +119,10 @@ async function fetchOrderItemsForOrderIds(orderIds) {
   const ids = Array.isArray(orderIds) ? orderIds.filter((x) => x != null) : []
   if (!ids.length) return []
 
-  const preferredSelect = 'orderItemID, orderID, quantity, price, products(productID, productName, type, price, image_path)'
-  const fallbackSelect = 'orderItemID, orderID, quantity, price, products(productID, productName, type, price)'
-
-  let data
-  let error
-  {
-    const res = await supabase.from('order_items').select(preferredSelect).in('orderID', ids)
-    data = res.data
-    error = res.error
-  }
-
-  if (error) {
-    const fb = await supabase.from('order_items').select(fallbackSelect).in('orderID', ids)
-    data = fb.data
-    error = fb.error
-  }
+  const { data, error } = await supabase
+    .from('order_items')
+    .select('orderItemID, orderID, quantity, price, selectedAddons, products(productID, productName, type, price, image_path)')
+    .in('orderID', ids)
 
   if (error) throw error
   return Array.isArray(data) ? data : []
@@ -157,7 +145,7 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
 
   const [trendPayments, setTrendPayments] = useState([])
 
-  const [realtimeCards, setRealtimeCards] = useState({ completed: null, pending: null })
+  const [realtimeCards, setRealtimeCards] = useState([])
   const [monitoringCounts, setMonitoringCounts] = useState({ pending: 0, completed: 0 })
 
   const [trendFilter, setTrendFilter] = useState('Daily')
@@ -167,6 +155,7 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
   const [showMostSoldFilter, setShowMostSoldFilter] = useState(false)
 
   const refreshTimerRef = useRef(null)
+  const fetchVersionRef = useRef(0)
   const getPrimaryRange = useMemo(() => {
     const anchor = selectedDate ? new Date(selectedDate) : new Date()
     if (timeFilter === 'Daily') {
@@ -236,15 +225,20 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
       .from('orders')
       .select('orderID, status, orderType, orderTimestamp, paymentstatus, order_items(quantity, price, products(productName))')
       .order('orderTimestamp', { ascending: false })
-      .limit(25)
+      .limit(15)
 
     if (error) throw error
 
     const rows = Array.isArray(data) ? data : []
-    const completed = rows.find((r) => isCompletedStatusValue(r?.status)) || null
-    const pending = rows.find((r) => !isCompletedStatusValue(r?.status)) || null
+    // Keep the 3 most recent orders that are still active (not completed/cancelled).
+    const activeOrders = rows
+      .filter((r) => {
+        const s = normalizeText(r?.status || '')
+        return !isCompletedStatusValue(r?.status) && s !== 'cancelled' && s !== 'canceled'
+      })
+      .slice(0, 3)
 
-    const toCard = (row, label) => {
+    const toCard = (row) => {
       if (!row) return null
       const stamp = parseStamp(row?.orderTimestamp)
       const rawType = String(row?.orderType || '').toLowerCase().replace(/[^a-z]/g, '')
@@ -252,26 +246,21 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
       const items = Array.isArray(row.order_items) ? row.order_items : []
       const totalPrice = items.reduce((sum, it) => sum + Number(it?.price || 0) * Number(it?.quantity || 0), 0)
       const totalItems = items.reduce((sum, it) => sum + Number(it?.quantity || 0), 0)
-      const servedItems = isCompletedStatusValue(row?.status) ? totalItems : 0
       const paymentStatus = String(row?.paymentstatus || '').toLowerCase()
       const isPaid = paymentStatus === 'paid' || paymentStatus === 'settled' || paymentStatus === 'complete'
       return {
-        label,
+        label: String(row?.status || 'Pending'),
         orderID: row.orderID,
         orderType,
         totalPrice,
         totalItems,
-        servedItems,
         isPaid,
         time: stamp ? formatMilitaryTime(stamp) : '--:--',
         date: stamp ? stamp.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : null,
       }
     }
 
-    setRealtimeCards({
-      completed: toCard(completed, 'Completed'),
-      pending: toCard(pending, 'Preparing'),
-    })
+    setRealtimeCards(activeOrders.map(toCard).filter(Boolean))
   }, [])
 
   const fetchMonitoringCounts = useCallback(async () => {
@@ -313,49 +302,63 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
   }, [selectedDate, trendFilter])
 
   useEffect(() => {
+    fetchVersionRef.current += 1
+    const myVersion = fetchVersionRef.current
+    const isStale = () => fetchVersionRef.current !== myVersion
+
     const refresh = async () => {
       try {
         const { start, end } = getPrimaryRange
         const { start: prevStart, end: prevEnd } = getComparisonRange
 
-        const [ordersNow, paymentsNow, ordersThen, paymentsThen] = await Promise.all([
+        // Fire sidebar cards immediately — independent of date range.
+        fetchRealtimeCards().catch(console.error)
+        fetchMonitoringCounts().catch(console.error)
+
+        // Phase 1: current period — paints KPI cards right away.
+        const [ordersNow, paymentsNow] = await Promise.all([
           fetchOrdersInRange(start, end),
           fetchPaymentsInRange(start, end),
-          fetchOrdersInRange(prevStart, prevEnd),
-          fetchPaymentsInRange(prevStart, prevEnd),
         ])
-
+        if (isStale()) return
         setOrders(ordersNow)
         setPayments(paymentsNow)
+
+        // Phase 2: order items + comparison + trend all in parallel.
+        const ids = ordersNow.map((o) => o.orderID)
+        const [items, ordersThen, paymentsThen, trend] = await Promise.all([
+          fetchOrderItemsForOrderIds(ids),
+          fetchOrdersInRange(prevStart, prevEnd),
+          fetchPaymentsInRange(prevStart, prevEnd),
+          fetchPaymentsInRange(getTrendRange.start, getTrendRange.end),
+        ])
+        if (isStale()) return
+        setOrderItems(items)
         setPrevOrders(ordersThen)
         setPrevPayments(paymentsThen)
-
-        const ids = ordersNow.map((o) => o.orderID)
-        const items = await fetchOrderItemsForOrderIds(ids)
-        setOrderItems(items)
-
-        const trend = await fetchPaymentsInRange(getTrendRange.start, getTrendRange.end)
         setTrendPayments(trend)
-
-        await Promise.all([fetchRealtimeCards(), fetchMonitoringCounts()])
       } catch (error) {
         console.error('Error fetching dashboard data:', error)
       }
     }
 
-    refresh()
+    // Debounce: rapid filter clicks only fire the last selected filter.
+    const debounceTimer = setTimeout(() => {
+      if (!isStale()) refresh()
+    }, 120)
 
     const unsubscribe = subscribeToOrderRelatedChanges(
       () => {
         if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
         refreshTimerRef.current = setTimeout(() => {
           refresh()
-        }, 200)
+        }, 300)
       },
-      () => refresh(), // re-fetch on reconnect to catch missed changes
+      () => refresh(),
     )
 
     return () => {
+      clearTimeout(debounceTimer)
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
       unsubscribe()
     }
@@ -527,6 +530,11 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
       const revenue = qty * unit
       const bucket = mapProductCategoryForPie(oi?.products?.type)
       totals[bucket] = (totals[bucket] || 0) + revenue
+      // Count addon revenue under Others so the pie matches payment totals.
+      const addons = Array.isArray(oi?.selectedAddons) ? oi.selectedAddons : []
+      addons.forEach((addon) => {
+        totals.Others = (totals.Others || 0) + Number(addon?.price || 0) * qty
+      })
     })
 
     const total = Object.values(totals).reduce((a, b) => a + b, 0)
@@ -598,7 +606,28 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
       distinctOrdersByProduct.get(name).add(oi.orderID)
     })
 
-    // Display: top 5 by number of orders (then revenue).
+    // Also aggregate selected addons under 'Others'.
+    ;(orderItems || []).forEach((oi) => {
+      if (!paidOrders.has(oi?.orderID)) return
+      const qty = Number(oi?.quantity || 0)
+      const addons = Array.isArray(oi?.selectedAddons) ? oi.selectedAddons : []
+      addons.forEach((addon) => {
+        const addonName = addon?.name
+        if (!addonName) return
+        const addonPrice = Number(addon?.price || 0)
+        if (!byProduct.has(addonName)) {
+          byProduct.set(addonName, { category: 'Others', name: addonName, image: null, orders: 0, revenue: 0, unitPrice: addonPrice, currentPrice: addonPrice, lastOrderDate: null })
+        }
+        const agg = byProduct.get(addonName)
+        agg.orders += qty
+        agg.revenue += addonPrice * qty
+        byProduct.set(addonName, agg)
+        if (!distinctOrdersByProduct.has(addonName)) distinctOrdersByProduct.set(addonName, new Set())
+        distinctOrdersByProduct.get(addonName).add(oi.orderID)
+      })
+    })
+
+    // Sort globally (per-category top-5 is applied in categorizedMostSold).
     const list = Array.from(byProduct.values())
       .map((p) => ({ ...p, distinctOrders: distinctOrdersByProduct.get(p.name)?.size || 0 }))
       .sort((a, b) => {
@@ -607,12 +636,11 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
         if (bo !== ao) return bo - ao
         return Number(b.revenue || 0) - Number(a.revenue || 0)
       })
-      .slice(0, 5)
       .map((p) => ({
         category: p.category,
         name: p.name,
         image: p.image || null,
-        orders: p.distinctOrders,
+        orders: p.orders,
         revenue: Math.round(p.revenue),
         unitPrice: p.unitPrice,
         currentPrice: p.currentPrice,
@@ -633,7 +661,8 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
     }, {})
     return order
       .filter((k) => grouped[k] && grouped[k].length)
-      .map((k) => ({ category: k, items: grouped[k] }))
+      // Top 5 per category — items are already globally sorted so first-5 = per-category top-5.
+      .map((k) => ({ category: k, items: grouped[k].slice(0, 5) }))
   }, [mostSoldProducts])
 
   const filteredCategorizedMostSold = useMemo(() => {
@@ -1029,8 +1058,7 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
                 {hasSalesBreakdown ? (
                   <>
                     <div className="pie-chart-container">
-                      <ResponsiveContainer width="100%" height={200}>
-                        <PieChart>
+                      <PieChart width={200} height={200}>
                           <Pie
                             data={salesData}
                             cx="50%"
@@ -1038,6 +1066,7 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
                             innerRadius={60}
                             outerRadius={80}
                             dataKey="value"
+                            isAnimationActive={false}
                           >
                             {salesData.map((entry, index) => (
                               <Cell key={`cell-${index}`} fill={entry.color} />
@@ -1048,7 +1077,6 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
                             contentStyle={{ backgroundColor: '#fff', border: '2px solid #000', borderRadius: '8px' }}
                           />
                         </PieChart>
-                      </ResponsiveContainer>
                       <div className="chart-center-text">
                         <div className="center-label"></div>
                         <div className="center-value"></div>
@@ -1218,34 +1246,33 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
             <div className="dashboard-section real-time-order-section">
               <h2>Real Time Order</h2>
               <div className="order-list">
-                {[realtimeCards.completed, realtimeCards.pending].filter(Boolean).map((card) => {
-                  const isCompleted = card.label === 'Completed'
-                  return (
-                    <div key={card.orderID} className={`rto-card ${isCompleted ? 'completed' : 'preparing'}`}>
-                      <div className="rto-left">
-                        <div className="rto-order-id">Order #{card.orderID ?? '--'}</div>
-                        {card.orderType && <div className="rto-order-type">{card.orderType}</div>}
+                {realtimeCards.length === 0 ? (
+                  <div className="rto-card preparing" style={{ opacity: 0.5, justifyContent: 'center' }}>No active orders</div>
+                ) : realtimeCards.map((card) => (
+                  <div key={card.orderID} className="rto-card preparing">
+                    <div className="rto-left">
+                      <div className="rto-order-id">Order #{card.orderID ?? '--'}</div>
+                      {card.orderType && <div className="rto-order-type">{card.orderType}</div>}
+                    </div>
+                    <div className="rto-center">
+                      <div className="rto-price">₱ {formatMoney(Number(card.totalPrice || 0))}</div>
+                    </div>
+                    <div className="rto-right">
+                      <div className="rto-status preparing">
+                        {card.label} · {card.totalItems} item{card.totalItems !== 1 ? 's' : ''}
                       </div>
-                      <div className="rto-center">
-                        <div className="rto-price">₱ {formatMoney(Number(card.totalPrice || 0))}</div>
-                      </div>
-                      <div className="rto-right">
-                        <div className={`rto-status ${isCompleted ? 'completed' : 'preparing'}`}>
-                          Status: {card.servedItems}/{card.totalItems} {card.label}
+                      <div className="rto-bottom-row">
+                        <div className="rto-stamp-wrapper">
+                          <span className="rto-stamp">{card.time}</span>
+                          {card.date && <span className="rto-date-tooltip">{card.date}</span>}
                         </div>
-                        <div className="rto-bottom-row">
-                          <div className="rto-stamp-wrapper">
-                            <span className="rto-stamp">{card.time}</span>
-                            {card.date && <span className="rto-date-tooltip">{card.date}</span>}
-                          </div>
-                          <div className={`rto-paid-badge ${card.isPaid ? 'paid' : 'unpaid'}`}>
-                            {card.isPaid ? 'PAID' : 'UNPAID'}
-                          </div>
+                        <div className={`rto-paid-badge ${card.isPaid ? 'paid' : 'unpaid'}`}>
+                          {card.isPaid ? 'PAID' : 'UNPAID'}
                         </div>
                       </div>
                     </div>
-                  )
-                })}
+                  </div>
+                ))}
               </div>
             </div>
 
