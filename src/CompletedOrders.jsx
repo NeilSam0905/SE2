@@ -270,9 +270,12 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
           .join('; ')
         const discountApplied = o.paidTotal > 0 && o.paidTotal < o.total - 0.01
         const isGcash = o.paymentMethod?.toLowerCase() === 'gcash'
+        const fmtTime = (ts) => ts ? new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A'
         return {
           orderId: o.id,
           date: o.dateObj.toLocaleDateString(),
+          timePlaced: fmtTime(o.orderTimestamp),
+          timeCompleted: fmtTime(o.completeTimestamp),
           total: Number(o.paidTotal || o.total || 0).toFixed(2),
           status: 'PAID',
           type: o.orderType,
@@ -307,7 +310,7 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
     const baseName = `completed-orders-${exportPeriod}`
 
     if (exportFormat === 'csv') {
-      const header = ['Order ID', 'Date', 'Total', 'Status', 'Type', 'Discount', 'Payment Method', 'Transaction Ref', 'Items']
+      const header = ['Order ID', 'Date', 'Time Order Placed', 'Time Order Completed', 'Total', 'Status', 'Type', 'Discount', 'Payment Method', 'Transaction Ref', 'Items']
       const lines = [header.join(',')]
       exportRows.forEach((r) => {
         const esc = (v) => {
@@ -315,7 +318,7 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
           const safe = s.replaceAll('"', '""')
           return `"${safe}"`
         }
-        lines.push([r.orderId, r.date, r.total, r.status, r.type, r.discount, r.paymentMethod, r.transactionRef, r.items].map(esc).join(','))
+        lines.push([r.orderId, r.date, r.timePlaced, r.timeCompleted, r.total, r.status, r.type, r.discount, r.paymentMethod, r.transactionRef, r.items].map(esc).join(','))
       })
 
       const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
@@ -329,6 +332,8 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
       exportRows.map((r) => ({
         'Order ID': r.orderId,
         Date: r.date,
+        'Time Order Placed': r.timePlaced,
+        'Time Order Completed': r.timeCompleted,
         Total: r.total,
         Status: r.status,
         Type: r.type,
