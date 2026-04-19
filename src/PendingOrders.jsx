@@ -32,6 +32,9 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
 
   const [cancelledOrders, setCancelledOrders] = useState([])
   const [selectedCancelledId, setSelectedCancelledId] = useState(null)
+  const [cancelledSearch, setCancelledSearch] = useState('')
+  const [cancelledPage, setCancelledPage] = useState(1)
+  const cancelledPageSize = 20
 
   const initialLoadDone = useRef(false)
 
@@ -92,6 +95,31 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
       return { ...o, total, servedCount, totalCount, isPreparing }
     })
   }, [orders])
+
+  const filteredCancelledOrders = useMemo(() => {
+    const q = cancelledSearch.trim().toLowerCase()
+    if (!q) return cancelledOrders
+    return cancelledOrders.filter((o) => {
+      return (
+        String(o.id).includes(q) ||
+        String(o.orderType || '').toLowerCase().includes(q) ||
+        String(o.cancelledBy || '').toLowerCase().includes(q) ||
+        (o.items || []).some((it) => String(it.name || '').toLowerCase().includes(q))
+      )
+    })
+  }, [cancelledOrders, cancelledSearch])
+
+  useEffect(() => { setCancelledPage(1) }, [cancelledSearch])
+
+  const cancelledPageCount = useMemo(() =>
+    Math.max(1, Math.ceil(filteredCancelledOrders.length / cancelledPageSize)),
+  [filteredCancelledOrders])
+
+  const pagedCancelledOrders = useMemo(() => {
+    const safePage = Math.min(Math.max(1, cancelledPage), cancelledPageCount)
+    const start = (safePage - 1) * cancelledPageSize
+    return filteredCancelledOrders.slice(start, start + cancelledPageSize)
+  }, [filteredCancelledOrders, cancelledPage, cancelledPageCount])
 
   const selectedOrder = useMemo(() => {
     if (!selectedOrderId) return null
@@ -341,7 +369,25 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
         {cancelledOrders.length > 0 ? (
         <div className="cancelled-section-layout">
           <div className="cancelled-table-section">
-            <h2 className="cancelled-table-title">Cancelled Orders</h2>
+            <div className="cancelled-table-headrow">
+              <h2 className="cancelled-table-title">Cancelled Orders</h2>
+              <div className="cancelled-search" role="search">
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <circle cx="9" cy="9" r="6" stroke="#000" strokeWidth="2" />
+                  <path d="M14 14L18 18" stroke="#000" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+                <input
+                  className="cancelled-search-input"
+                  value={cancelledSearch}
+                  onChange={(e) => setCancelledSearch(e.target.value)}
+                  placeholder="Search order #, type, item…"
+                  aria-label="Search cancelled orders"
+                />
+                {cancelledSearch ? (
+                  <button type="button" className="cancelled-search-clear" onClick={() => setCancelledSearch('')} aria-label="Clear search">✕</button>
+                ) : null}
+              </div>
+            </div>
             <div className="cancelled-table">
               <div className="cancelled-table-head">
                 <div>Order</div>
@@ -351,7 +397,9 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
                 <div>Cancelled By</div>
               </div>
               <div className="cancelled-table-body">
-                {cancelledOrders.map((o) => {
+                {pagedCancelledOrders.length === 0 ? (
+                  <div className="cancelled-empty">No cancelled orders found.</div>
+                ) : pagedCancelledOrders.map((o) => {
                   const total = (o.items || []).reduce((sum, it) => {
                     const addonTotal = (it.selectedAddons || []).reduce((a, addon) => a + Number(addon.price || 0), 0)
                     return sum + (Number(it.price || 0) + addonTotal) * Number(it.qty || 0)
@@ -371,6 +419,27 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
                   )
                 })}
               </div>
+            </div>
+            <div className="cancelled-table-nav">
+              <button
+                type="button"
+                className="cancelled-nav-btn"
+                onClick={() => setCancelledPage((p) => Math.max(1, p - 1))}
+                disabled={cancelledPage <= 1}
+              >
+                PREV
+              </button>
+              <div className="cancelled-nav-label">
+                Page {Math.min(Math.max(1, cancelledPage), cancelledPageCount)} of {cancelledPageCount}
+              </div>
+              <button
+                type="button"
+                className="cancelled-nav-btn"
+                onClick={() => setCancelledPage((p) => Math.min(cancelledPageCount, p + 1))}
+                disabled={cancelledPage >= cancelledPageCount}
+              >
+                NEXT
+              </button>
             </div>
           </div>
 

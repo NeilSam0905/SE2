@@ -54,6 +54,7 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
 
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [selectedOrderId, setSelectedOrderId] = useState(null)
+  const [selectedHistoryId, setSelectedHistoryId] = useState(null)
   const [historyPage, setHistoryPage] = useState(1)
   const historyPageSize = 20
 
@@ -132,6 +133,11 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
     if (!selectedOrderId) return null
     return ordersWithTotals.find((o) => o.id === selectedOrderId) || null
   }, [ordersWithTotals, selectedOrderId])
+
+  const selectedHistoryOrder = useMemo(() => {
+    if (!selectedHistoryId) return null
+    return ordersWithTotals.find((o) => o.id === selectedHistoryId) || null
+  }, [ordersWithTotals, selectedHistoryId])
 
   const drawerOpen = Boolean(detailsOpen && selectedOrder)
 
@@ -412,94 +418,162 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
 
         {isAdmin ? (
           <div className="completed-table-section">
-            <div className="completed-table-headrow">
-              <h2 className="completed-table-title">Completed Order History</h2>
-              <div className="co-search" role="search">
-                <input
-                  className="co-search-input"
-                  value={historySearch}
-                  onChange={(e) => setHistorySearch(e.target.value)}
-                  placeholder="Search order #, type, status, item…"
-                  aria-label="Search completed order history"
-                />
-                {historySearch ? (
+            <div className="completed-history-layout">
+              <div className="completed-history-table-wrap">
+                <div className="completed-table-headrow">
+                  <h2 className="completed-table-title">Completed Order History</h2>
+                  <div className="co-search" role="search">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                      <circle cx="9" cy="9" r="6" stroke="#000" strokeWidth="2" />
+                      <path d="M14 14L18 18" stroke="#000" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                    <input
+                      className="co-search-input"
+                      value={historySearch}
+                      onChange={(e) => setHistorySearch(e.target.value)}
+                      placeholder="Search order #, type, status, item…"
+                      aria-label="Search completed order history"
+                    />
+                    {historySearch ? (
+                      <button
+                        type="button"
+                        className="co-search-clear"
+                        onClick={() => setHistorySearch('')}
+                        aria-label="Clear search"
+                      >
+                        ✕
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="completed-table">
+                  <div className="completed-table-head">
+                    <div>Order</div>
+                    <div>Date</div>
+                    <div>Total</div>
+                    <div>Status</div>
+                    <div>Type</div>
+                    <div>Action</div>
+                  </div>
+                  <div className="completed-table-body">
+                    {pagedHistoryOrders.map((o) => (
+                      <div key={o.id} className={`completed-row ${selectedHistoryId === o.id ? 'active' : ''}`}>
+                        <div className="cell">Order #{o.id}</div>
+                        <div className="cell">{o.dateObj.toLocaleDateString()}</div>
+                        <div className="cell">₱ {formatMoney(o.total)}</div>
+                        <div className="cell">
+                          <button
+                            type="button"
+                            className={`status-pill ${o.paid ? 'paid' : 'unpaid'} clickable`}
+                            onClick={() => requestTogglePaid(o.id)}
+                            aria-label="Toggle paid status"
+                          >
+                            {o.paid ? 'PAID' : 'UNPAID'}
+                          </button>
+                        </div>
+                        <div className="cell">{o.orderType}</div>
+                        <div className="cell">
+                          <button
+                            type="button"
+                            className="view-btn"
+                            onClick={() => setSelectedHistoryId((prev) => prev === o.id ? null : o.id)}
+                          >
+                            VIEW
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="completed-table-nav" aria-label="Completed orders navigation">
                   <button
                     type="button"
-                    className="co-search-clear"
-                    onClick={() => setHistorySearch('')}
-                    aria-label="Clear search"
+                    className="completed-nav-btn"
+                    onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
+                    disabled={historyPage <= 1}
                   >
-                    ✕
+                    PREV
                   </button>
-                ) : null}
-              </div>
-            </div>
-            <div className="completed-table">
-              <div className="completed-table-head">
-                <div>Order</div>
-                <div>Date</div>
-                <div>Total</div>
-                <div>Status</div>
-                <div>Type</div>
-                <div>Action</div>
-              </div>
-              <div className="completed-table-body">
-                {pagedHistoryOrders.map((o) => (
-                  <div key={o.id} className="completed-row">
-                    <div className="cell">Order #{o.id}</div>
-                    <div className="cell">{o.dateObj.toLocaleDateString()}</div>
-                    <div className="cell">₱ {formatMoney(o.total)}</div>
-                    <div className="cell">
-                      <button
-                        type="button"
-                        className={`status-pill ${o.paid ? 'paid' : 'unpaid'} clickable`}
-                        onClick={() => requestTogglePaid(o.id)}
-                        aria-label="Toggle paid status"
-                      >
-                        {o.paid ? 'PAID' : 'UNPAID'}
-                      </button>
-                    </div>
-                    <div className="cell">{o.orderType}</div>
-                    <div className="cell">
-                      <button
-                        type="button"
-                        className="view-btn"
-                        onClick={() => {
-                          setSelectedOrderId(o.id)
-                          setDetailsOpen(true)
-                          if (contentRef.current) {
-                            contentRef.current.scrollTop = 0
-                          }
-                        }}
-                      >
-                        VIEW
-                      </button>
-                    </div>
+                  <div className="completed-nav-label">
+                    Page {Math.min(Math.max(1, historyPage), historyPageCount)} of {historyPageCount}
                   </div>
-                ))}
+                  <button
+                    type="button"
+                    className="completed-nav-btn"
+                    onClick={() => setHistoryPage((p) => Math.min(historyPageCount, p + 1))}
+                    disabled={historyPage >= historyPageCount}
+                  >
+                    NEXT
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <div className="completed-table-nav" aria-label="Completed orders navigation">
-              <button
-                type="button"
-                className="completed-nav-btn"
-                onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
-                disabled={historyPage <= 1}
-              >
-                PREV
-              </button>
-              <div className="completed-nav-label">
-                Page {Math.min(Math.max(1, historyPage), historyPageCount)} of {historyPageCount}
-              </div>
-              <button
-                type="button"
-                className="completed-nav-btn"
-                onClick={() => setHistoryPage((p) => Math.min(historyPageCount, p + 1))}
-                disabled={historyPage >= historyPageCount}
-              >
-                NEXT
-              </button>
+              {selectedHistoryOrder ? (
+                <div className="completed-history-detail-panel">
+                  <button className="details-close" type="button" onClick={() => setSelectedHistoryId(null)}>
+                    {'<'} Close
+                  </button>
+                  <div className="details-title">Order Details:</div>
+                  <div className="details-order">
+                    Order #{selectedHistoryOrder.id}
+                    {selectedHistoryOrder.isCustomerOrder ? <span className="details-customer-badge">Customer Order</span> : null}
+                  </div>
+                  {selectedHistoryOrder.queueNumber ? <div className="details-queue">Queue: {selectedHistoryOrder.queueNumber}</div> : null}
+                  {selectedHistoryOrder.orderType ? <div className="details-order-type">Order Type: {selectedHistoryOrder.orderType}</div> : null}
+                  <div className="details-sub"><span>{selectedHistoryOrder.dateObj.toLocaleDateString()}</span></div>
+
+                  <div className="details-items">
+                    {selectedHistoryOrder.items.map((it) => {
+                      const addonTotal = (it.selectedAddons || []).reduce((a, addon) => a + Number(addon.price || 0), 0)
+                      const lineTotal = (Number(it.price || 0) + addonTotal) * Number(it.qty || 0)
+                      return (
+                        <div key={it.id} className="details-item">
+                          <img
+                            className="item-image"
+                            src={it.image || placeholderSvg}
+                            alt={it.name}
+                            loading="lazy"
+                            onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = placeholderSvg }}
+                          />
+                          <div className="item-main">
+                            <div className="item-name">{it.name}</div>
+                            {(it.selectedAddons || []).length > 0 ? (
+                              <div className="item-addons">
+                                {it.selectedAddons.map((addon) => (
+                                  <span key={addon.id} className="item-addon-tag">+ {addon.name}{addon.price > 0 ? ` (₱${formatMoney(addon.price)})` : ''}</span>
+                                ))}
+                              </div>
+                            ) : null}
+                            <div className="item-qty">Qty. {it.qty}</div>
+                          </div>
+                          <div className="item-right">
+                            <div className="item-price">₱ {formatMoney(lineTotal)}</div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  <div className="details-footer">
+                    <div className="details-row">
+                      <span>Total:</span>
+                      <span className="details-total">₱ {formatMoney(selectedHistoryOrder.total)}</span>
+                    </div>
+                    <div className="details-row">
+                      <span>Order Type:</span>
+                      <span className="details-type">{selectedHistoryOrder.orderType}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className={`paid-toggle ${selectedHistoryOrder.paid ? 'paid' : 'unpaid'}`}
+                      onClick={() => requestTogglePaid(selectedHistoryOrder.id)}
+                    >
+                      {selectedHistoryOrder.paid ? 'MARK AS UNPAID' : 'MARK AS PAID'}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div className="export-section" aria-label="Export completed orders">

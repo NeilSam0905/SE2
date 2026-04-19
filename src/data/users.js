@@ -92,7 +92,7 @@ export async function updateUser(userRole, userId, raw, currentUserName) {
   const updatePayload = {
     name: dto.name,
     role: dto.role,
-    status: dto.active ? 'Inactive' : 'Deactivated',
+    status: dto.active ? 'Active' : 'Deactivated',
   }
 
   const { error: updateError } = await supabase
@@ -115,5 +115,105 @@ export async function updateUser(userRole, userId, raw, currentUserName) {
         'Password for other users can only be changed via a Supabase Edge Function with service_role.',
       )
     }
+  }
+}
+
+// ─── DELETE ──────────────────────────────────────────────────────────────────
+
+/**
+ * Permanently removes a user from the database.
+ * Guards: must be admin; cannot delete self; cannot delete last admin.
+ *
+ * @param {string} userRole - current user's role
+ * @param {number} userId   - id of the user to delete
+ */
+export async function deleteUser(userRole, userId) {
+  guardAdmin(userRole)
+  const id = Number(userId)
+  if (!Number.isFinite(id) || id <= 0) throw new Error('deleteUser: userId must be a positive number')
+
+  // Verify we're not trying to delete the last admin.
+  const { data: targetUser, error: fetchErr } = await supabase
+    .from('users')
+    .select('id, role')
+    .eq('id', id)
+    .single()
+
+  if (fetchErr) throw fetchErr
+
+  if (String(targetUser?.role || '').toLowerCase() === 'admin') {
+    const { count, error: countErr } = await supabase
+      .from('users')
+      .select('id', { count: 'exact', head: true })
+      .ilike('role', 'admin')
+
+    if (countErr) throw countErr
+
+    if ((count ?? 0) <= 1) {
+      const err = new Error('Cannot remove the last admin account')
+      err.code = 'LAST_ADMIN'
+      throw err
+    }
+  }
+
+  const { data: deleted, error } = await supabase
+    .from('users')
+    .delete()
+    .eq('id', id)
+    .select('id')
+
+  if (error) throw error
+
+  if (!deleted || deleted.length === 0) {
+    const err = new Error(
+      'Delete was blocked by the database. ' +
+      'Please add a DELETE policy for the users table in your Supabase dashboard:\n\n' +
+      'Table: users → Policies → New Policy → "Enable delete for authenticated users"\n' +
+      'Or run in SQL editor: CREATE POLICY "admins can delete users" ON users FOR DELETE TO authenticated USING (true);'
+    )
+    err.code = 'RLS_BLOCKED'
+    throw err
+  }
+}
+
+// ─── REALTIME ────────────────────────────────────────────────────────────────
+
+/**
+ * Subscribe to any INSERT/UPDATE/DELETE on the users table.
+ * Returns an unsubscribe function.
+ */
+export function subscribeToUserChanges(onChange) {
+  let retryTimer = null
+  let retryCount = 0
+  const baseId = Math.random().toString(16).slice(2)
+  const activeChannel = { current: null }
+
+  const setupChannel = () => {
+    const channelName = `users-watch-${baseId}-${retryCount}`
+    const ch = supabase
+      .channel(channelName)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, onChange)
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          retryCount = 0
+        }
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          const delay = Math.min(1000 * 2 ** retryCount, 30000)
+          retryCount++
+          if (retryTimer) clearTimeout(retryTimer)
+          retryTimer = setTimeout(() => {
+            try { supabase.removeChannel(activeChannel.current) } catch { /* ignore */ }
+            activeChannel.current = setupChannel()
+          }, delay)
+        }
+      })
+    return ch
+  }
+
+  activeChannel.current = setupChannel()
+
+  return () => {
+    if (retryTimer) clearTimeout(retryTimer)
+    try { supabase.removeChannel(activeChannel.current) } catch { /* ignore */ }
   }
 }

@@ -209,6 +209,55 @@
   font-weight: 600;
 }
 
+/* Weekly Calendar */
+.calendar-dropdown.weekly {
+  min-width: 220px;
+}
+
+.weeks-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+}
+
+.week-item {
+  text-align: center;
+  padding: 0.75rem 0.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: all 0.2s;
+  border: 2px solid transparent;
+  color: #000;
+}
+
+.week-item:hover {
+  background-color: #f5e6d3;
+}
+
+.week-item.selected {
+  background-color: #6a1b1a;
+  color: #f4c27a;
+  border-color: #6a1b1a;
+}
+
+.week-label {
+  font-weight: 700;
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+
+.week-range {
+  font-size: 0.75rem;
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+.week-item.selected .week-range {
+  opacity: 1;
+}
+
 /* Monthly Calendar */
 .calendar-dropdown.monthly {
   min-width: 240px;

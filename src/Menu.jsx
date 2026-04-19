@@ -26,6 +26,7 @@ const normalizeProductType = (raw) => {
   if (t === 'vegetable' || t === 'vegetables') return 'Vegetable'
   if (t === 'drinks' || t === 'drink') return 'Drinks'
   if (t === 'others' || t === 'other') return 'Others'
+  if (t === 'addons' || t === 'addon') return 'Addons'
   if (t === 'food') return 'Others'
   return 'Others'
 }
@@ -36,6 +37,7 @@ const PRODUCT_TYPE_OPTIONS = [
   { key: 'Vegetable', label: 'Vegetable' },
   { key: 'Drinks', label: 'Drinks' },
   { key: 'Others', label: 'Others' },
+  { key: 'Addons', label: 'Addons' },
 ]
 
 function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User' }) {
@@ -199,6 +201,12 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
     })
   }, [products, searchTerm, categoryFilter])
 
+  const filteredAddons = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase()
+    if (!q) return addons
+    return addons.filter((a) => String(a.name || '').toLowerCase().includes(q))
+  }, [addons, searchTerm])
+
   const categorizedProducts = useMemo(() => {
     const order = [
       { key: 'Meat', label: 'Meat' },
@@ -206,6 +214,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
       { key: 'Vegetable', label: 'Vegetable' },
       { key: 'Drinks', label: 'Drinks' },
       { key: 'Others', label: 'Others' },
+      { key: 'Addons', label: 'Addons' },
     ]
 
     const grouped = filteredProducts.reduce((acc, product) => {
@@ -376,8 +385,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
               <div className="menu-mu-filter-menu">
                 {[
                   { key: 'ALL', label: 'All' },
-                    ...PRODUCT_TYPE_OPTIONS.map((t) => ({ key: t.key, label: t.label })),
-                  { key: 'ADDONS', label: 'Addons' },
+                  ...PRODUCT_TYPE_OPTIONS.map((t) => ({ key: t.key, label: t.label })),
                 ].map((opt) => (
                   <button
                     key={opt.key}
@@ -444,8 +452,9 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
                 ))}
               </div>
             ))}
-            {/* Addons category — visible when filter is ALL or ADDONS */}
-            {(categoryFilter === 'ALL' || categoryFilter === 'ADDONS') && (
+            {/* Addons category — visible when filter is ALL or Addons, and matches search */}
+            {(categoryFilter === 'ALL' || categoryFilter === 'Addons') &&
+             (addonsLoaded && !addonsError ? filteredAddons.length > 0 : true) && (
               <div className="menu-category-group">
                 <div className="menu-category-header">
                   <div className="menu-category-pill"><span>Addons</span></div>
@@ -454,9 +463,9 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
                   <div className="menu-row" style={{ padding: '1rem 1.25rem', opacity: 0.6 }}>Loading addons…</div>
                 ) : addonsError ? (
                   <div className="menu-row" style={{ padding: '1rem 1.25rem', color: '#c0392b' }}>Error loading addons: {addonsError}</div>
-                ) : addons.length === 0 ? (
-                  <div className="menu-row" style={{ padding: '1rem 1.25rem', opacity: 0.6 }}>No addons found. (Check the addons table exists and has data)</div>
-                ) : addons.map((addon) => (
+                ) : filteredAddons.length === 0 ? (
+                  <div className="menu-row" style={{ padding: '1rem 1.25rem', opacity: 0.6 }}>No addons found.</div>
+                ) : filteredAddons.map((addon) => (
                   <div key={addon.id} className="menu-row menu-row-grid">
                     <div className="menu-cell product-cell">
                       <span className="product-name">{addon.name}</span>

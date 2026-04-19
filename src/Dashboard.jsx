@@ -135,6 +135,7 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
   const [showMonthlyCalendar, setShowMonthlyCalendar] = useState(false)
   const [showYearlyCalendar, setShowYearlyCalendar] = useState(false)
   const [selectedDate, setSelectedDate] = useState(new Date())
+  const [selectedWeek, setSelectedWeek] = useState(() => Math.min(4, Math.ceil(new Date().getDate() / 7)))
 
   const [orders, setOrders] = useState([])
   const [payments, setPayments] = useState([])
@@ -165,8 +166,13 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
     }
 
     if (timeFilter === 'Weekly') {
-      const end = endOfDay(anchor)
-      const start = startOfDay(addDays(anchor, -6))
+      const year = anchor.getFullYear()
+      const month = anchor.getMonth()
+      const daysInMonth = new Date(year, month + 1, 0).getDate()
+      const dayStart = (selectedWeek - 1) * 7 + 1
+      const dayEnd = selectedWeek === 4 ? daysInMonth : selectedWeek * 7
+      const start = new Date(year, month, dayStart, 0, 0, 0, 0)
+      const end = new Date(year, month, Math.min(dayEnd, daysInMonth), 23, 59, 59, 999)
       return { start, end }
     }
 
@@ -187,7 +193,7 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
     const start = startOfDay(anchor)
     const end = endOfDay(anchor)
     return { start, end }
-  }, [selectedDate, timeFilter])
+  }, [selectedDate, selectedWeek, timeFilter])
 
   const getComparisonRange = useMemo(() => {
     const { start, end } = getPrimaryRange
@@ -301,68 +307,74 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
     return { start: startOfDay(addDays(anchor, -6)), end }
   }, [selectedDate, trendFilter])
 
+  // Always-current ref so the stable refresh callback never reads stale range values.
+  const latestRangesRef = useRef({ primary: getPrimaryRange, comparison: getComparisonRange, trend: getTrendRange })
   useEffect(() => {
+    latestRangesRef.current = { primary: getPrimaryRange, comparison: getComparisonRange, trend: getTrendRange }
+  }, [getPrimaryRange, getComparisonRange, getTrendRange])
+
+  // Stable async refresh — increments its own version counter so only the most
+  // recent concurrent call commits its results; older in-flight fetches self-cancel.
+  const refresh = useCallback(async () => {
     fetchVersionRef.current += 1
     const myVersion = fetchVersionRef.current
     const isStale = () => fetchVersionRef.current !== myVersion
 
-    const refresh = async () => {
-      try {
-        const { start, end } = getPrimaryRange
-        const { start: prevStart, end: prevEnd } = getComparisonRange
+    try {
+      const { primary: { start, end }, comparison: { start: prevStart, end: prevEnd }, trend: trendRange } = latestRangesRef.current
 
-        // Fire sidebar cards immediately — independent of date range.
-        fetchRealtimeCards().catch(console.error)
-        fetchMonitoringCounts().catch(console.error)
+      // Fire sidebar cards immediately — independent of date range.
+      fetchRealtimeCards().catch(console.error)
+      fetchMonitoringCounts().catch(console.error)
 
-        // Phase 1: current period — paints KPI cards right away.
-        const [ordersNow, paymentsNow] = await Promise.all([
-          fetchOrdersInRange(start, end),
-          fetchPaymentsInRange(start, end),
-        ])
-        if (isStale()) return
-        setOrders(ordersNow)
-        setPayments(paymentsNow)
+      // Phase 1: current period — paints KPI cards right away.
+      const [ordersNow, paymentsNow] = await Promise.all([
+        fetchOrdersInRange(start, end),
+        fetchPaymentsInRange(start, end),
+      ])
+      if (isStale()) return
+      setOrders(ordersNow)
+      setPayments(paymentsNow)
 
-        // Phase 2: order items + comparison + trend all in parallel.
-        const ids = ordersNow.map((o) => o.orderID)
-        const [items, ordersThen, paymentsThen, trend] = await Promise.all([
-          fetchOrderItemsForOrderIds(ids),
-          fetchOrdersInRange(prevStart, prevEnd),
-          fetchPaymentsInRange(prevStart, prevEnd),
-          fetchPaymentsInRange(getTrendRange.start, getTrendRange.end),
-        ])
-        if (isStale()) return
-        setOrderItems(items)
-        setPrevOrders(ordersThen)
-        setPrevPayments(paymentsThen)
-        setTrendPayments(trend)
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error)
-      }
+      // Phase 2: order items + comparison + trend all in parallel.
+      const ids = ordersNow.map((o) => o.orderID)
+      const [items, ordersThen, paymentsThen, trend] = await Promise.all([
+        fetchOrderItemsForOrderIds(ids),
+        fetchOrdersInRange(prevStart, prevEnd),
+        fetchPaymentsInRange(prevStart, prevEnd),
+        fetchPaymentsInRange(trendRange.start, trendRange.end),
+      ])
+      if (isStale()) return
+      setOrderItems(items)
+      setPrevOrders(ordersThen)
+      setPrevPayments(paymentsThen)
+      setTrendPayments(trend)
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error)
     }
+  }, [fetchMonitoringCounts, fetchRealtimeCards])
 
-    // Debounce: rapid filter clicks only fire the last selected filter.
-    const debounceTimer = setTimeout(() => {
-      if (!isStale()) refresh()
-    }, 120)
+  // Re-fetch whenever any filter-driven range changes (debounced for rapid clicks).
+  useEffect(() => {
+    const timer = setTimeout(refresh, 120)
+    return () => clearTimeout(timer)
+  }, [refresh, getPrimaryRange, getComparisonRange, getTrendRange])
 
+  // Realtime subscription — created ONCE on mount, never torn down on filter changes.
+  // Keeping it stable avoids the reconnect delay that caused missed updates.
+  useEffect(() => {
     const unsubscribe = subscribeToOrderRelatedChanges(
       () => {
         if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
-        refreshTimerRef.current = setTimeout(() => {
-          refresh()
-        }, 300)
+        refreshTimerRef.current = setTimeout(refresh, 300)
       },
       () => refresh(),
     )
-
     return () => {
-      clearTimeout(debounceTimer)
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
       unsubscribe()
     }
-  }, [fetchMonitoringCounts, fetchRealtimeCards, getComparisonRange, getPrimaryRange, getTrendRange])
+  }, [refresh])
 
   const normalizeOrderType = (value) => String(value || '').toLowerCase().replace(/[^a-z]/g, '')
 
@@ -891,11 +903,55 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
                 </button>
               </div>
               {showWeeklyCalendar && (
-                <div className="calendar-dropdown">
+                <div className="calendar-dropdown weekly">
                   <div className="calendar-header">
-                    <span>Week</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newDate = new Date(selectedDate)
+                        newDate.setMonth(selectedDate.getMonth() - 1)
+                        setSelectedDate(newDate)
+                      }}
+                    >
+                      ‹
+                    </button>
+                    <span>
+                      {months[selectedDate.getMonth()]} {selectedDate.getFullYear()}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newDate = new Date(selectedDate)
+                        newDate.setMonth(selectedDate.getMonth() + 1)
+                        setSelectedDate(newDate)
+                      }}
+                    >
+                      ›
+                    </button>
                   </div>
-                  <div className="calendar-week-note">Weekly view uses the current week.</div>
+                  <div className="weeks-grid">
+                    {[1, 2, 3, 4].map((week) => {
+                      const year = selectedDate.getFullYear()
+                      const month = selectedDate.getMonth()
+                      const daysInMonth = new Date(year, month + 1, 0).getDate()
+                      const dayStart = (week - 1) * 7 + 1
+                      const dayEnd = week === 4 ? daysInMonth : week * 7
+                      return (
+                        <div
+                          key={week}
+                          className={`week-item ${selectedWeek === week ? 'selected' : ''}`}
+                          onClick={() => {
+                            setSelectedWeek(week)
+                            setTimeFilter('Weekly')
+                            setShowWeeklyCalendar(false)
+                          }}
+                        >
+                          <div className="week-label">Week {week}</div>
+                          <div className="week-range">{dayStart} – {Math.min(dayEnd, daysInMonth)}</div>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
             </div>

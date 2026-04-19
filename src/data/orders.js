@@ -11,7 +11,7 @@ const CANCELLED_STATUSES = new Set(['cancelled', 'canceled'])
 
 // Simple in-memory cache so switching pages doesn't re-fetch from scratch.
 // Cache entries expire after CACHE_TTL ms and are invalidated by realtime changes.
-const CACHE_TTL = 5000
+const CACHE_TTL = 30000
 const _ordersCache = new Map()
 
 export function invalidateOrdersCache() {
@@ -124,6 +124,17 @@ export async function fetchOrdersWithItems({ completed }) {
     return cached.data
   }
 
+  // Server-side status filter — drastically reduces rows returned for large datasets.
+  // The JS filter below still runs as a safety net for edge-case status values.
+  const COMPLETED_VALS = ['Completed', 'Complete', 'Done', 'Served', 'Closed', 'Finished']
+  const CANCELLED_VALS = ['Cancelled', 'Canceled']
+  const applyStatusFilter = (q) => {
+    if (completed === 'cancelled') return q.in('status', CANCELLED_VALS)
+    if (completed) return q.in('status', COMPLETED_VALS)
+    const notIn = `(${[...COMPLETED_VALS, ...CANCELLED_VALS].join(',')})`
+    return q.not('status', 'in', notIn)
+  }
+
   const baseSelect = `
       orderID,
       orderType,
@@ -150,7 +161,7 @@ export async function fetchOrdersWithItems({ completed }) {
   let error
 
   {
-    const res = await supabase.from('orders').select(baseSelect)
+    const res = await applyStatusFilter(supabase.from('orders').select(baseSelect))
     data = res.data
     error = res.error
     if (error) console.warn('[orders] baseSelect failed:', error.message)
@@ -179,7 +190,7 @@ export async function fetchOrdersWithItems({ completed }) {
       payments!fk_payments_orderid(paymentID, totalAmount, paymentTimestamp)
     `
 
-    const fb = await supabase.from('orders').select(fallbackSelect)
+    const fb = await applyStatusFilter(supabase.from('orders').select(fallbackSelect))
     data = fb.data
     error = fb.error
     if (error) console.warn('[orders] fallbackSelect failed:', error.message)
@@ -204,7 +215,7 @@ export async function fetchOrdersWithItems({ completed }) {
       payments(paymentID, totalAmount, paymentTimestamp)
     `
 
-    const fb2 = await supabase.from('orders').select(fallbackUnqualified)
+    const fb2 = await applyStatusFilter(supabase.from('orders').select(fallbackUnqualified))
     data = fb2.data
     error = fb2.error
     if (error) console.warn('[orders] fallbackUnqualified failed:', error.message)
@@ -228,7 +239,7 @@ export async function fetchOrdersWithItems({ completed }) {
       )
     `
 
-    const legacy = await supabase.from('orders').select(legacySelect)
+    const legacy = await applyStatusFilter(supabase.from('orders').select(legacySelect))
     data = legacy.data
     error = legacy.error
     if (error) console.warn('[orders] legacySelect (no payments) failed:', error.message)
@@ -443,11 +454,14 @@ export function subscribeToOrderRelatedChanges(onChange, onReconnect) {
   let retryTimer = null
   let retryCount = 0
 
-  const channelName = `orders-watch-${Math.random().toString(16).slice(2)}`
+  const baseId = Math.random().toString(16).slice(2)
   // Track the latest channel so retries don't leave zombie subscriptions.
   const activeChannel = { current: null }
 
   const setupChannel = () => {
+    // Use a fresh channel name on every attempt — reusing a closed channel's name
+    // can confuse the Supabase client and prevent a clean re-subscription.
+    const channelName = `orders-watch-${baseId}-${retryCount}`
     const ch = supabase
       .channel(channelName)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => { invalidateOrdersCache(); onChange() })

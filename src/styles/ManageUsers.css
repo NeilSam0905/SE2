@@ -485,6 +485,15 @@
   text-decoration: underline;
 }
 
+.mu-empty {
+  padding: 2.5rem 1.25rem;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1rem;
+  color: #000;
+  opacity: 0.45;
+}
+
 .mu-table-scroll {
   flex: 1;
   overflow-y: auto;
@@ -510,6 +519,100 @@
 
 .mu-table-scroll::-webkit-scrollbar-thumb:hover {
   background: #6d3410;
+}
+
+/* ── Account Status Toggle ──────────────────────────────────────────────────── */
+.account-access-row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.access-btn {
+  flex: 1;
+  background-color: #d0d0d0;
+  color: #555;
+  border: none;
+  border-radius: 50px;
+  padding: 0.75rem 1.5rem;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s;
+}
+
+.access-btn.access-enabled {
+  background-color: #6a1b1a;
+  color: #f4c27a;
+}
+
+.access-btn.access-enabled:hover {
+  background-color: #8b2a28;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.access-btn.access-disabled {
+  background-color: #7a2020;
+  color: #ffd5d5;
+}
+
+.access-btn.access-disabled:hover {
+  background-color: #9b2b2b;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.account-access-note {
+  font-style: italic;
+  font-size: 0.9rem;
+  color: #666;
+  padding: 0.4rem 0;
+}
+
+/* ── Remove Account Button ──────────────────────────────────────────────────── */
+.remove-user-btn {
+  background-color: #7a2020;
+  color: #ffd5d5;
+  border: none;
+  border-radius: 50px;
+  padding: 1rem 2rem;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.3s;
+  margin: 1rem 0 0 0;
+  width: fit-content;
+}
+
+.remove-user-btn:hover {
+  background-color: #9b2b2b;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* ── Disabled User Row ──────────────────────────────────────────────────────── */
+.mu-row-disabled {
+  opacity: 0.55;
+}
+
+.mu-user-disabled-badge {
+  align-self: flex-start;
+  margin-top: 0.2rem;
+  padding: 0.15rem 0.6rem;
+  background: #e57373;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #fff;
 }
 
 @media (max-width: 900px) {

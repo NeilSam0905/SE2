@@ -12,10 +12,7 @@ import { supabase, toAuthEmail } from './lib/supabaseClient'
 function App() {
   const [name, setName] = useState('')
   const [password, setPassword] = useState('')
-  const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    const saved = localStorage.getItem('isLoggedIn')
-    return saved ? JSON.parse(saved) : false
-  })
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [currentPage, setCurrentPage] = useState(() => {
     const saved = localStorage.getItem('currentPage')
     return saved || 'dashboard'
@@ -45,6 +42,24 @@ function App() {
     isLoggedInRef.current = isLoggedIn
   }, [isLoggedIn])
 
+
+  // On every launch: clear any persisted Supabase auth session so that a fresh
+  // login is always required when the app is restarted.
+  // We directly remove the localStorage token keys instead of calling
+  // supabase.auth.signOut() — signOut() dispatches a SIGNED_OUT event even
+  // with scope:'local', which races with a rapid login attempt and causes
+  // "can't login" failures on some machines.
+  useEffect(() => {
+    localStorage.removeItem('isLoggedIn')
+    try {
+      // Supabase auth token key format: sb-<project-ref>-auth-token
+      Object.keys(localStorage)
+        .filter((k) => /^sb-.+-auth-token/.test(k))
+        .forEach((k) => localStorage.removeItem(k))
+    } catch { /* ignore storage access errors */ }
+  }, [])
+
+
   useEffect(() => {
     localStorage.setItem('isLoggedIn', JSON.stringify(isLoggedIn))
   }, [isLoggedIn])
@@ -66,32 +81,6 @@ function App() {
     else localStorage.setItem('userId', String(userId))
   }, [userId])
 
-  const setOnlineStatus = async (id, online) => {
-    if (id == null) return false
-
-    // NOTE: We use a 3-state model:
-    // - Active: logged in
-    // - Inactive: logged out
-    // - Deactivated: account disabled (cannot log in)
-    const { error: updateError } = await supabase
-      .from('users')
-      .update({ status: online ? 'Active' : 'Inactive' })
-      .eq('id', id)
-
-    if (updateError) {
-      // If RLS/privileges block it, don't break login/logout, but log it.
-      console.warn('Failed to update user status:', updateError)
-      return false
-    }
-
-    return true
-  }
-
-  useEffect(() => {
-    if (!isLoggedIn || userId == null) return
-    setOnlineStatus(userId, true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoggedIn, userId])
 
   // Restore session from Supabase Auth on page reload.
   useEffect(() => {
@@ -116,8 +105,12 @@ function App() {
       }
 
       if (event === 'SIGNED_OUT') {
-        setIsLoggedIn(false)
-        setUserId(null)
+        // Only act if we were actually logged in — prevents spurious events
+        // (e.g. from the startup storage wipe) from disrupting the login form.
+        if (isLoggedInRef.current) {
+          setIsLoggedIn(false)
+          setUserId(null)
+        }
       }
     })
 
@@ -152,7 +145,15 @@ function App() {
       const { data: authData, error: authError } = authResult
 
       if (authError) {
-        setError('Invalid name or password')
+        const msg = String(authError.message || '').toLowerCase()
+        if (msg.includes('invalid') || msg.includes('credentials') || msg.includes('password') || msg.includes('email')) {
+          setError('Invalid name or password.')
+        } else if (msg.includes('rate') || msg.includes('too many')) {
+          setError('Too many login attempts. Please wait a moment and try again.')
+        } else {
+          // Show the actual Supabase error so issues can be identified.
+          setError(`Login failed: ${authError.message}`)
+        }
         setName('')
         setPassword('')
         setLoading(false)
@@ -233,12 +234,7 @@ function App() {
     }
   }
 
-  const handleLogout = async () => {
-    const fallbackIdRaw = localStorage.getItem('userId')
-    const fallbackId = fallbackIdRaw != null ? Number(fallbackIdRaw) : null
-    const id = userId ?? (Number.isFinite(fallbackId) ? fallbackId : null)
-
-    // Clear local state immediately so the UI responds.
+  const handleLogout = () => {
     setIsLoggedIn(false)
     setUserId(null)
     setUserRole('admin')
@@ -247,9 +243,6 @@ function App() {
     localStorage.removeItem('currentPage')
     setName('')
     setPassword('')
-
-    // Await status update BEFORE signing out so the session is still valid for RLS.
-    if (id != null) await setOnlineStatus(id, false).catch(() => {})
     supabase.auth.signOut().catch(() => {})
   }
 
@@ -274,7 +267,7 @@ function App() {
       case 'completed':
         return <CompletedOrders onLogout={handleLogout} onNavigate={handleNavigate} userRole={userRole} userName={userName} />
       case 'users':
-        return <ManageUsers onLogout={handleLogout} onNavigate={handleNavigate} userRole={userRole} userName={userName} />
+        return <ManageUsers onLogout={handleLogout} onNavigate={handleNavigate} userRole={userRole} userName={userName} userId={userId} />
       default:
         return <Dashboard onLogout={handleLogout} onNavigate={handleNavigate} userRole={userRole} userName={userName} />
     }
