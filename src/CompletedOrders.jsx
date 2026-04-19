@@ -415,6 +415,12 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
               {selectedOrder.paidTotal > 0 && selectedOrder.paidTotal < selectedOrder.total - 0.01 ? (
                 <div className="details-discount-info">Discount: PWD/Senior (20%)</div>
               ) : null}
+              {selectedOrder.orderTimestamp ? (
+                <div className="details-time-info">Time Order Placed: {new Date(selectedOrder.orderTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+              ) : null}
+              {selectedOrder.completeTimestamp ? (
+                <div className="details-time-completed">Time Order Completed: {new Date(selectedOrder.completeTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+              ) : null}
               <div className="details-sub">
                 <span>{selectedOrder.dateObj.toLocaleDateString()}</span>
               </div>
@@ -601,6 +607,12 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
                   {selectedHistoryOrder.queueNumber ? <div className="details-queue">Queue: {selectedHistoryOrder.queueNumber}</div> : null}
                   {selectedHistoryOrder.paidTotal > 0 && selectedHistoryOrder.paidTotal < selectedHistoryOrder.total - 0.01 ? (
                     <div className="details-discount-info">Discount: PWD/Senior (20%)</div>
+                  ) : null}
+                  {selectedHistoryOrder.orderTimestamp ? (
+                    <div className="details-time-info">Time Order Placed: {new Date(selectedHistoryOrder.orderTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                  ) : null}
+                  {selectedHistoryOrder.completeTimestamp ? (
+                    <div className="details-time-info">Time Order Completed: {new Date(selectedHistoryOrder.completeTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                   ) : null}
                   {selectedHistoryOrder.orderType ? <div className="details-order-type">Order Type: {selectedHistoryOrder.orderType}</div> : null}
                   <div className="details-sub"><span>{selectedHistoryOrder.dateObj.toLocaleDateString()}</span></div>

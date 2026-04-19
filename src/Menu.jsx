@@ -26,7 +26,7 @@ const normalizeProductType = (raw) => {
   if (t === 'vegetable' || t === 'vegetables') return 'Vegetable'
   if (t === 'drinks' || t === 'drink') return 'Drinks'
   if (t === 'others' || t === 'other') return 'Others'
-  if (t === 'addons' || t === 'addon') return 'Addons'
+  if (t === 'addons' || t === 'addon') return 'Add-ons'
   if (t === 'food') return 'Others'
   return 'Others'
 }
@@ -37,7 +37,7 @@ const PRODUCT_TYPE_OPTIONS = [
   { key: 'Vegetable', label: 'Vegetable' },
   { key: 'Drinks', label: 'Drinks' },
   { key: 'Others', label: 'Others' },
-  { key: 'Addons', label: 'Addons' },
+  { key: 'Addons', label: 'Add-ons' },
 ]
 
 function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User' }) {
@@ -214,7 +214,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
       { key: 'Vegetable', label: 'Vegetable' },
       { key: 'Drinks', label: 'Drinks' },
       { key: 'Others', label: 'Others' },
-      { key: 'Addons', label: 'Addons' },
+      { key: 'Addons', label: 'Add-ons' },
     ]
 
     const grouped = filteredProducts.reduce((acc, product) => {
@@ -457,14 +457,14 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
              (addonsLoaded && !addonsError ? filteredAddons.length > 0 : true) && (
               <div className="menu-category-group">
                 <div className="menu-category-header">
-                  <div className="menu-category-pill"><span>Addons</span></div>
+                  <div className="menu-category-pill"><span>Add-ons</span></div>
                 </div>
                 {!addonsLoaded ? (
                   <div className="menu-row" style={{ padding: '1rem 1.25rem', opacity: 0.6 }}>Loading addons…</div>
                 ) : addonsError ? (
                   <div className="menu-row" style={{ padding: '1rem 1.25rem', color: '#c0392b' }}>Error loading addons: {addonsError}</div>
                 ) : filteredAddons.length === 0 ? (
-                  <div className="menu-row" style={{ padding: '1rem 1.25rem', opacity: 0.6 }}>No addons found.</div>
+                  <div className="menu-row" style={{ padding: '1rem 1.25rem', opacity: 0.6 }}>No add-ons found.</div>
                 ) : filteredAddons.map((addon) => (
                   <div key={addon.id} className="menu-row menu-row-grid">
                     <div className="menu-cell product-cell">

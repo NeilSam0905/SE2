@@ -918,6 +918,7 @@
   border-radius: 14px;
   gap: 1rem;
   transition: box-shadow 0.2s;
+  color: #000;
 }
 
 .rto-card:hover {

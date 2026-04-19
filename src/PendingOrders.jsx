@@ -357,6 +357,9 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
               {selectedOrder.discountType && selectedOrder.discountType !== 'None' ? (
                 <div className="details-discount-info">Discount: {selectedOrder.discountType} (20%)</div>
               ) : null}
+              {selectedOrder.orderTimestamp ? (
+                <div className="details-time-info">Time Order Placed: {new Date(selectedOrder.orderTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+              ) : null}
               <div className="details-status">
                 {selectedOrder.servedCount === selectedOrder.totalCount
                   ? 'Status: Done'

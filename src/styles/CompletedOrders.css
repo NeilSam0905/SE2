@@ -774,6 +774,27 @@
   margin-bottom: 4px;
 }
 
+.completed-orders-page .details-order-type {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #6a1b1a;
+  margin-top: 0.15rem;
+}
+
+.completed-orders-page .details-time-info {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #1565c0;
+  margin-top: 0.15rem;
+}
+
+.completed-orders-page .details-time-completed {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #2e7d32;
+  margin-top: 0.15rem;
+}
+
 .item-addons {
   display: flex;
   flex-wrap: wrap;

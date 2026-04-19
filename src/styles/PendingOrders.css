@@ -212,6 +212,13 @@
   margin-top: 0.15rem;
 }
 
+.pending-orders-page .details-time-info {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #1565c0;
+  margin-top: 0.15rem;
+}
+
 .pending-orders-page .details-status {
   font-weight: 700;
   color: #000;
