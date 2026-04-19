@@ -226,6 +226,17 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
     return `${sign}${pct.toFixed(2)}%`
   }
 
+  const changeIsNeg = (changeStr) => String(changeStr).startsWith('-')
+
+  // lowerIsBetter=true inverts the color (e.g. prep time: drop = good = green)
+  const changeClass = (changeStr, lowerIsBetter = false) => {
+    const neg = changeIsNeg(changeStr)
+    const good = lowerIsBetter ? neg : !neg
+    return good ? 'positive' : 'negative'
+  }
+  const changeArrow = (changeStr) => changeIsNeg(changeStr) ? '↓' : '↑'
+  const changeArrowClass = (changeStr) => changeIsNeg(changeStr) ? 'arrow-down' : 'arrow-up'
+
   const fetchRealtimeCards = useCallback(async () => {
     const { data, error } = await supabase
       .from('orders')
@@ -1070,16 +1081,16 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
             <div className="stat-card">
               <h3>Total Sales</h3>
               <div className="stat-value">₱ {formatMoney(statsData.revenue)}</div>
-              <div className="stat-change positive">
-                <span className="arrow-up">↑</span> {statsData.revenueChange} <span className="vs-text">{comparisonLabel}</span>
+              <div className={`stat-change ${changeClass(statsData.revenueChange)}`}>
+                <span className={changeArrowClass(statsData.revenueChange)}>{changeArrow(statsData.revenueChange)}</span> {statsData.revenueChange} <span className="vs-text">{comparisonLabel}</span>
               </div>
             </div>
 
             <div className="stat-card">
               <h3>Total Orders</h3>
               <div className="stat-value">{formatInteger(statsData.orders)}</div>
-              <div className="stat-change positive">
-                <span className="arrow-up">↑</span> {statsData.ordersChange} <span className="vs-text">{comparisonLabel}</span>
+              <div className={`stat-change ${changeClass(statsData.ordersChange)}`}>
+                <span className={changeArrowClass(statsData.ordersChange)}>{changeArrow(statsData.ordersChange)}</span> {statsData.ordersChange} <span className="vs-text">{comparisonLabel}</span>
               </div>
             </div>
 
@@ -1088,8 +1099,8 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
                 <h3>Avg Prep Time</h3>
               </div>
               <div className="stat-value">{displayedPrepTime}</div>
-              <div className="stat-change negative">
-                <span className="arrow-down">↓</span> {statsData.prepChange} <span className="vs-text">{comparisonLabel}</span>
+              <div className={`stat-change ${changeClass(statsData.prepChange, true)}`}>
+                <span className={changeArrowClass(statsData.prepChange)}>{changeArrow(statsData.prepChange)}</span> {statsData.prepChange} <span className="vs-text">{comparisonLabel}</span>
               </div>
             </div>
 
