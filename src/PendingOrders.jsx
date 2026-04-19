@@ -30,6 +30,9 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
   const [showAllServedConfirm, setShowAllServedConfirm] = useState(false)
   const [pendingCompleteOrderId, setPendingCompleteOrderId] = useState(null)
 
+  const [showPreparingConfirm, setShowPreparingConfirm] = useState(false)
+  const [pendingPreparingOrderId, setPendingPreparingOrderId] = useState(null)
+
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [pendingCancelOrderId, setPendingCancelOrderId] = useState(null)
 
@@ -418,7 +421,7 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
                   <span className="details-type">{selectedOrder.orderType}</span>
                 </div>
                 {!selectedOrder.isPreparing ? (
-                  <button type="button" className="mark-preparing-btn" onClick={() => handleMarkPreparing(selectedOrder.id)}>
+                  <button type="button" className="mark-preparing-btn" onClick={() => { setPendingPreparingOrderId(selectedOrder.id); setShowPreparingConfirm(true) }}>
                     MARK AS PREPARING
                   </button>
                 ) : null}
@@ -586,6 +589,24 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
         </div>
         ) : null}
       </div>
+
+      <ConfirmModal
+        open={showPreparingConfirm}
+        title="Mark order as preparing?"
+        message="This will notify the kitchen to start preparing this order."
+        cancelText="Cancel"
+        confirmText="Yes, mark preparing"
+        onCancel={() => {
+          setShowPreparingConfirm(false)
+          setPendingPreparingOrderId(null)
+        }}
+        onConfirm={() => {
+          const orderId = pendingPreparingOrderId
+          setShowPreparingConfirm(false)
+          setPendingPreparingOrderId(null)
+          if (orderId != null) handleMarkPreparing(orderId)
+        }}
+      />
 
       <ConfirmModal
         open={showAllServedConfirm}
