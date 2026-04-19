@@ -458,6 +458,19 @@
   color: #000;
 }
 
+.completed-discount-badge,
+.order-card-discount-badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  background: #fff3e0;
+  color: #e65100;
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  vertical-align: middle;
+}
+
 .completed-row + .completed-row {
   border-top: 1px solid rgba(0, 0, 0, 0.08);
 }

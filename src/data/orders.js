@@ -68,6 +68,7 @@ const mapOrderRowToUi = (row, { includeServedFlag = false } = {}) => {
   const firstPayment = Array.isArray(payments) ? payments[0] : (payments || null)
   const paymentMethod = getField(firstPayment, ['paymentMethod', 'payment_method']) || null
   const transactionRef = getField(firstPayment, ['transactionRef', 'transaction_ref', 'referenceNumber']) || null
+  const paidTotal = firstPayment ? Number(getField(firstPayment, ['totalAmount', 'total_amount']) || 0) : null
 
   const paid = paymentstatus != null
     ? isPaidStatus(paymentstatus)
@@ -119,6 +120,7 @@ const mapOrderRowToUi = (row, { includeServedFlag = false } = {}) => {
     isCustomerOrder,
     paymentMethod,
     transactionRef,
+    paidTotal,
     items,
   }
 }

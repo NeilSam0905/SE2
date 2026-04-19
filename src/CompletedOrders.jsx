@@ -262,22 +262,26 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
       ? ordersWithTotals.filter((o) => inRange(o.dateObj, windowRange.start, windowRange.end))
       : []
 
-    return filtered.map((o) => {
-      const itemsText = (o.items || [])
-        .map((it) => `${it.name} x${it.qty}`)
-        .join('; ')
-
-      return {
-        orderId: o.id,
-        date: o.dateObj.toLocaleDateString(),
-        total: Number(o.total || 0).toFixed(2),
-        status: o.paid ? 'PAID' : 'UNPAID',
-        type: o.orderType,
-        paymentMethod: o.paymentMethod || '',
-        transactionRef: o.paymentMethod?.toLowerCase() === 'gcash' ? (o.transactionRef || '') : '',
-        items: itemsText,
-      }
-    })
+    return filtered
+      .filter((o) => o.paid)
+      .map((o) => {
+        const itemsText = (o.items || [])
+          .map((it) => `${it.name} x${it.qty}`)
+          .join('; ')
+        const discountApplied = o.paidTotal > 0 && o.paidTotal < o.total - 0.01
+        const isGcash = o.paymentMethod?.toLowerCase() === 'gcash'
+        return {
+          orderId: o.id,
+          date: o.dateObj.toLocaleDateString(),
+          total: Number(o.paidTotal || o.total || 0).toFixed(2),
+          status: 'PAID',
+          type: o.orderType,
+          discount: discountApplied ? 'PWD/Senior (20%)' : 'None',
+          paymentMethod: o.paymentMethod || 'Cash',
+          transactionRef: isGcash ? (o.transactionRef || '') : 'N/A',
+          items: itemsText,
+        }
+      })
   }, [ordersWithTotals, exportEnd, exportMonth, exportPeriod, exportQuarter, exportStart, exportYear])
 
   const exportDisabled = useMemo(() => {
@@ -303,7 +307,7 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
     const baseName = `completed-orders-${exportPeriod}`
 
     if (exportFormat === 'csv') {
-      const header = ['Order ID', 'Date', 'Total', 'Status', 'Type', 'Payment Method', 'Transaction Ref', 'Items']
+      const header = ['Order ID', 'Date', 'Total', 'Status', 'Type', 'Discount', 'Payment Method', 'Transaction Ref', 'Items']
       const lines = [header.join(',')]
       exportRows.forEach((r) => {
         const esc = (v) => {
@@ -311,7 +315,7 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
           const safe = s.replaceAll('"', '""')
           return `"${safe}"`
         }
-        lines.push([r.orderId, r.date, r.total, r.status, r.type, r.paymentMethod, r.transactionRef, r.items].map(esc).join(','))
+        lines.push([r.orderId, r.date, r.total, r.status, r.type, r.discount, r.paymentMethod, r.transactionRef, r.items].map(esc).join(','))
       })
 
       const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
@@ -328,6 +332,7 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
         Total: r.total,
         Status: r.status,
         Type: r.type,
+        Discount: r.discount,
         'Payment Method': r.paymentMethod,
         'Transaction Ref': r.transactionRef,
         Items: r.items,
@@ -379,8 +384,9 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
                     <span className="order-link">Order #{o.id}</span>
                     {o.queueNumber ? <span className="order-card-queue">{o.queueNumber}</span> : null}
                     {o.isCustomerOrder ? <span className="order-card-customer-badge">Customer</span> : null}
+                    {o.paidTotal > 0 && o.paidTotal < o.total - 0.01 ? <span className="order-card-discount-badge">20% off</span> : null}
                   </div>
-                  <div className="order-card-total">₱ {formatMoney(o.total)}</div>
+                  <div className="order-card-total">₱ {formatMoney(o.paidTotal || o.total)}</div>
                   <div className="order-card-status">
                     <div className={`status-pill ${o.paid ? 'paid' : 'unpaid'}`}>{o.paid ? 'PAID' : 'UNPAID'}</div>
                   </div>
@@ -405,6 +411,9 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
               </div>
               {selectedOrder.queueNumber ? (
                 <div className="details-queue">Queue: {selectedOrder.queueNumber}</div>
+              ) : null}
+              {selectedOrder.paidTotal > 0 && selectedOrder.paidTotal < selectedOrder.total - 0.01 ? (
+                <div className="details-discount-info">Discount: PWD/Senior (20%)</div>
               ) : null}
               <div className="details-sub">
                 <span>{selectedOrder.dateObj.toLocaleDateString()}</span>
@@ -444,8 +453,14 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
               <div className="details-footer">
                 <div className="details-row">
                   <span>Total:</span>
-                  <span className="details-total">₱ {formatMoney(selectedOrder.total)}</span>
+                  <span className="details-total">₱ {formatMoney(selectedOrder.paidTotal || selectedOrder.total)}</span>
                 </div>
+                {selectedOrder.paidTotal > 0 && selectedOrder.paidTotal < selectedOrder.total - 0.01 ? (
+                  <div className="details-row">
+                    <span>Before discount:</span>
+                    <span style={{ textDecoration: 'line-through', opacity: 0.6, fontWeight: 700 }}>₱ {formatMoney(selectedOrder.total)}</span>
+                  </div>
+                ) : null}
                 <div className="details-row">
                   <span>Order Type:</span>
                   <span className="details-type">{selectedOrder.orderType}</span>
@@ -517,9 +532,14 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
                   <div className="completed-table-body">
                     {pagedHistoryOrders.map((o) => (
                       <div key={o.id} className={`completed-row ${selectedHistoryId === o.id ? 'active' : ''}`}>
-                        <div className="cell">Order #{o.id}</div>
+                        <div className="cell">
+                          Order #{o.id}
+                          {o.paidTotal > 0 && o.paidTotal < o.total - 0.01 ? (
+                            <span className="completed-discount-badge">20% off</span>
+                          ) : null}
+                        </div>
                         <div className="cell">{o.dateObj.toLocaleDateString()}</div>
-                        <div className="cell">₱ {formatMoney(o.total)}</div>
+                        <div className="cell">₱ {formatMoney(o.paidTotal || o.total)}</div>
                         <div className="cell">
                           <button
                             type="button"
@@ -579,6 +599,9 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
                     {selectedHistoryOrder.isCustomerOrder ? <span className="details-customer-badge">Customer Order</span> : null}
                   </div>
                   {selectedHistoryOrder.queueNumber ? <div className="details-queue">Queue: {selectedHistoryOrder.queueNumber}</div> : null}
+                  {selectedHistoryOrder.paidTotal > 0 && selectedHistoryOrder.paidTotal < selectedHistoryOrder.total - 0.01 ? (
+                    <div className="details-discount-info">Discount: PWD/Senior (20%)</div>
+                  ) : null}
                   {selectedHistoryOrder.orderType ? <div className="details-order-type">Order Type: {selectedHistoryOrder.orderType}</div> : null}
                   <div className="details-sub"><span>{selectedHistoryOrder.dateObj.toLocaleDateString()}</span></div>
 
@@ -616,8 +639,14 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
                   <div className="details-footer">
                     <div className="details-row">
                       <span>Total:</span>
-                      <span className="details-total">₱ {formatMoney(selectedHistoryOrder.total)}</span>
+                      <span className="details-total">₱ {formatMoney(selectedHistoryOrder.paidTotal || selectedHistoryOrder.total)}</span>
                     </div>
+                    {selectedHistoryOrder.paidTotal > 0 && selectedHistoryOrder.paidTotal < selectedHistoryOrder.total - 0.01 ? (
+                      <div className="details-row">
+                        <span>Before discount:</span>
+                        <span style={{ textDecoration: 'line-through', opacity: 0.6, fontWeight: 700 }}>₱ {formatMoney(selectedHistoryOrder.total)}</span>
+                      </div>
+                    ) : null}
                     <div className="details-row">
                       <span>Order Type:</span>
                       <span className="details-type">{selectedHistoryOrder.orderType}</span>
