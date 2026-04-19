@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Navbar from './elements/Navbar'
 import ConfirmModal from './elements/ConfirmModal'
 import './styles/CompletedOrders.css'
@@ -10,6 +10,9 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
   const isAdmin = userRole === 'admin'
 
   const contentRef = useRef(null)
+  const cardRefs = useRef({})
+  const ordersListPanelRef = useRef(null)
+  const [panelTop, setPanelTop] = useState(0)
 
   const refreshTimerRef = useRef(null)
   const [loading, setLoading] = useState(false)
@@ -34,6 +37,20 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
   }
 
   useEffect(() => {
+    const handlePaidUpdated = (e) => {
+      const { orderId, paid } = e.detail
+      setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, paid } : o))
+    }
+    const handleOrderCompleted = () => loadOrders({ silent: true })
+    window.addEventListener('orderPaidUpdated', handlePaidUpdated)
+    window.addEventListener('orderCompleted', handleOrderCompleted)
+    return () => {
+      window.removeEventListener('orderPaidUpdated', handlePaidUpdated)
+      window.removeEventListener('orderCompleted', handleOrderCompleted)
+    }
+  }, [])
+
+  useEffect(() => {
     loadOrders()
 
     const unsubscribe = subscribeToOrderRelatedChanges(
@@ -41,7 +58,7 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
         if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
         refreshTimerRef.current = setTimeout(() => {
           loadOrders({ silent: true })
-        }, 150)
+        }, 15)
       },
       () => loadOrders({ silent: true }),
     )
@@ -89,7 +106,7 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
   }, [orders])
 
   const recentOrders = useMemo(() => ordersWithTotals.filter((o) => o.within24h), [ordersWithTotals])
-  const historyOrders = useMemo(() => ordersWithTotals, [ordersWithTotals])
+  const historyOrders = useMemo(() => ordersWithTotals.filter((o) => o.paid), [ordersWithTotals])
 
   const filteredHistoryOrders = useMemo(() => {
     const q = String(historySearch || '').trim().toLowerCase()
@@ -140,6 +157,28 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
   }, [ordersWithTotals, selectedHistoryId])
 
   const drawerOpen = Boolean(detailsOpen && selectedOrder)
+
+  const updatePanelTop = useCallback(() => {
+    if (isAdmin) { setPanelTop(0); return }
+    if (!selectedOrderId || !ordersListPanelRef.current) { setPanelTop(0); return }
+    const cardEl = cardRefs.current[selectedOrderId]
+    if (!cardEl) { setPanelTop(0); return }
+    const listRect = ordersListPanelRef.current.getBoundingClientRect()
+    const cardRect = cardEl.getBoundingClientRect()
+    const offset = cardRect.top - listRect.top
+    setPanelTop(Math.max(0, offset))
+  }, [selectedOrderId, isAdmin])
+
+  useEffect(() => {
+    updatePanelTop()
+  }, [selectedOrderId, updatePanelTop])
+
+  useEffect(() => {
+    const cardsEl = ordersListPanelRef.current?.querySelector('.order-cards')
+    if (!cardsEl) return
+    cardsEl.addEventListener('scroll', updatePanelTop, { passive: true })
+    return () => cardsEl.removeEventListener('scroll', updatePanelTop)
+  }, [updatePanelTop])
 
   const togglePaid = async (orderId) => {
     const target = orders.find((o) => o.id === orderId)
@@ -234,6 +273,8 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
         total: Number(o.total || 0).toFixed(2),
         status: o.paid ? 'PAID' : 'UNPAID',
         type: o.orderType,
+        paymentMethod: o.paymentMethod || '',
+        transactionRef: o.paymentMethod?.toLowerCase() === 'gcash' ? (o.transactionRef || '') : '',
         items: itemsText,
       }
     })
@@ -262,7 +303,7 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
     const baseName = `completed-orders-${exportPeriod}`
 
     if (exportFormat === 'csv') {
-      const header = ['Order ID', 'Date', 'Total', 'Status', 'Type', 'Items']
+      const header = ['Order ID', 'Date', 'Total', 'Status', 'Type', 'Payment Method', 'Transaction Ref', 'Items']
       const lines = [header.join(',')]
       exportRows.forEach((r) => {
         const esc = (v) => {
@@ -270,7 +311,7 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
           const safe = s.replaceAll('"', '""')
           return `"${safe}"`
         }
-        lines.push([r.orderId, r.date, r.total, r.status, r.type, r.items].map(esc).join(','))
+        lines.push([r.orderId, r.date, r.total, r.status, r.type, r.paymentMethod, r.transactionRef, r.items].map(esc).join(','))
       })
 
       const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
@@ -287,6 +328,8 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
         Total: r.total,
         Status: r.status,
         Type: r.type,
+        'Payment Method': r.paymentMethod,
+        'Transaction Ref': r.transactionRef,
         Items: r.items,
       }))
     )
@@ -311,7 +354,7 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
 
       <div className="page-content completed-orders-content" ref={contentRef}>
         <div className={`orders-layout ${drawerOpen ? 'drawer-open' : ''}`}>
-          <div className="orders-list-panel">
+          <div className="orders-list-panel" ref={ordersListPanelRef}>
             <div className="orders-list-header">
               <div className="orders-list-col left">Complete Orders</div>
               <div className="orders-list-col">Total</div>
@@ -325,6 +368,7 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
                 <button
                   key={o.id}
                   type="button"
+                  ref={(el) => { if (el) cardRefs.current[o.id] = el; else delete cardRefs.current[o.id] }}
                   className={`order-card ${selectedOrderId === o.id && detailsOpen ? 'active' : ''}`}
                   onClick={() => {
                     setSelectedOrderId(o.id)
@@ -349,7 +393,7 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
           {detailsOpen && selectedOrder ? (
             <>
               <div className="details-backdrop" role="presentation" onClick={() => setDetailsOpen(false)} />
-              <div className="order-details-panel">
+              <div className="order-details-panel" style={{ marginTop: isAdmin ? 0 : panelTop, ...(isAdmin ? { maxHeight: '644px', minHeight: '644px' } : {}) }}>
               <button className="details-close" type="button" onClick={() => setDetailsOpen(false)}>
                 {'<'} Close
               </button>
@@ -381,14 +425,17 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
                       {(it.selectedAddons || []).length > 0 ? (
                         <div className="item-addons">
                           {it.selectedAddons.map((addon) => (
-                            <span key={addon.id} className="item-addon-tag">+ {addon.name}{addon.price > 0 ? ` (₱${formatMoney(addon.price)})` : ''}</span>
+                            <span key={addon.id} className="item-addon-tag">+ {addon.name}</span>
                           ))}
                         </div>
                       ) : null}
                       <div className="item-qty">Qty. {it.qty}</div>
                     </div>
                     <div className="item-right">
-                      <div className="item-price">₱ {formatMoney((Number(it.price || 0) + (it.selectedAddons || []).reduce((a, ad) => a + Number(ad.price || 0), 0)) * Number(it.qty || 0))}</div>
+                      <div className="item-price">₱ {formatMoney(Number(it.price || 0) * Number(it.qty || 0))}</div>
+                      {(it.selectedAddons || []).filter((ad) => Number(ad.price || 0) > 0).map((ad) => (
+                        <div key={ad.id} className="item-addon-price">+ ₱ {formatMoney(Number(ad.price) * Number(it.qty || 0))}</div>
+                      ))}
                     </div>
                   </div>
                 ))}
@@ -403,6 +450,18 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
                   <span>Order Type:</span>
                   <span className="details-type">{selectedOrder.orderType}</span>
                 </div>
+                {selectedOrder.paid || selectedOrder.paymentMethod ? (
+                  <div className="details-row">
+                    <span>Payment:</span>
+                    <span className="details-type">{selectedOrder.paymentMethod || 'Cash'}</span>
+                  </div>
+                ) : null}
+                {selectedOrder.paymentMethod?.toLowerCase() === 'gcash' && selectedOrder.transactionRef ? (
+                  <div className="details-row">
+                    <span>Ref #:</span>
+                    <span className="details-type">{selectedOrder.transactionRef}</span>
+                  </div>
+                ) : null}
                 <button
                   type="button"
                   className={`paid-toggle ${selectedOrder.paid ? 'paid' : 'unpaid'}`}
@@ -524,35 +583,34 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
                   <div className="details-sub"><span>{selectedHistoryOrder.dateObj.toLocaleDateString()}</span></div>
 
                   <div className="details-items">
-                    {selectedHistoryOrder.items.map((it) => {
-                      const addonTotal = (it.selectedAddons || []).reduce((a, addon) => a + Number(addon.price || 0), 0)
-                      const lineTotal = (Number(it.price || 0) + addonTotal) * Number(it.qty || 0)
-                      return (
-                        <div key={it.id} className="details-item">
-                          <img
-                            className="item-image"
-                            src={it.image || placeholderSvg}
-                            alt={it.name}
-                            loading="lazy"
-                            onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = placeholderSvg }}
-                          />
-                          <div className="item-main">
-                            <div className="item-name">{it.name}</div>
-                            {(it.selectedAddons || []).length > 0 ? (
-                              <div className="item-addons">
-                                {it.selectedAddons.map((addon) => (
-                                  <span key={addon.id} className="item-addon-tag">+ {addon.name}{addon.price > 0 ? ` (₱${formatMoney(addon.price)})` : ''}</span>
-                                ))}
-                              </div>
-                            ) : null}
-                            <div className="item-qty">Qty. {it.qty}</div>
-                          </div>
-                          <div className="item-right">
-                            <div className="item-price">₱ {formatMoney(lineTotal)}</div>
-                          </div>
+                    {selectedHistoryOrder.items.map((it) => (
+                      <div key={it.id} className="details-item">
+                        <img
+                          className="item-image"
+                          src={it.image || placeholderSvg}
+                          alt={it.name}
+                          loading="lazy"
+                          onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = placeholderSvg }}
+                        />
+                        <div className="item-main">
+                          <div className="item-name">{it.name}</div>
+                          {(it.selectedAddons || []).length > 0 ? (
+                            <div className="item-addons">
+                              {it.selectedAddons.map((addon) => (
+                                <span key={addon.id} className="item-addon-tag">+ {addon.name}</span>
+                              ))}
+                            </div>
+                          ) : null}
+                          <div className="item-qty">Qty. {it.qty}</div>
                         </div>
-                      )
-                    })}
+                        <div className="item-right">
+                          <div className="item-price">₱ {formatMoney(Number(it.price || 0) * Number(it.qty || 0))}</div>
+                          {(it.selectedAddons || []).filter((ad) => Number(ad.price || 0) > 0).map((ad) => (
+                            <div key={ad.id} className="item-addon-price">+ ₱ {formatMoney(Number(ad.price) * Number(it.qty || 0))}</div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
                   </div>
 
                   <div className="details-footer">
@@ -564,6 +622,18 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
                       <span>Order Type:</span>
                       <span className="details-type">{selectedHistoryOrder.orderType}</span>
                     </div>
+                    {selectedHistoryOrder.paymentMethod ? (
+                      <div className="details-row">
+                        <span>Payment:</span>
+                        <span className="details-type">{selectedHistoryOrder.paymentMethod}</span>
+                      </div>
+                    ) : null}
+                    {selectedHistoryOrder.paymentMethod?.toLowerCase() === 'gcash' && selectedHistoryOrder.transactionRef ? (
+                      <div className="details-row">
+                        <span>Ref #:</span>
+                        <span className="details-type">{selectedHistoryOrder.transactionRef}</span>
+                      </div>
+                    ) : null}
                     <button
                       type="button"
                       className={`paid-toggle ${selectedHistoryOrder.paid ? 'paid' : 'unpaid'}`}

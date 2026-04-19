@@ -366,7 +366,7 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
     const unsubscribe = subscribeToOrderRelatedChanges(
       () => {
         if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
-        refreshTimerRef.current = setTimeout(refresh, 300)
+        refreshTimerRef.current = setTimeout(refresh, 15)
       },
       () => refresh(),
     )

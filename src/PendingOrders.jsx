@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Navbar from './elements/Navbar'
 import ConfirmModal from './elements/ConfirmModal'
 import './styles/PendingOrders.css'
@@ -10,12 +10,18 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState('')
-  const [servedOverrides, setServedOverrides] = useState({})
+  const [servedOverrides, setServedOverrides] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('servedOverrides')
+      return saved ? JSON.parse(saved) : {}
+    } catch { return {} }
+  })
   const servedOverridesRef = useRef(servedOverrides)
   const refreshTimerRef = useRef(null)
 
   useEffect(() => {
     servedOverridesRef.current = servedOverrides
+    try { sessionStorage.setItem('servedOverrides', JSON.stringify(servedOverrides)) } catch { /* ignore */ }
   }, [servedOverrides])
 
   const [detailsOpen, setDetailsOpen] = useState(false)
@@ -37,6 +43,9 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
   const cancelledPageSize = 20
 
   const initialLoadDone = useRef(false)
+  const cardRefs = useRef({})
+  const ordersListPanelRef = useRef(null)
+  const [panelTop, setPanelTop] = useState(0)
 
   const loadOrders = async ({ silent = false } = {}) => {
     if (!silent) { setLoading(true); setLoadError('') }
@@ -65,6 +74,23 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
   }
 
   useEffect(() => {
+    const handlePaidUpdated = (e) => {
+      const { orderId, paid } = e.detail
+      setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, paid } : o))
+    }
+    const handleOrderCompleted = (e) => {
+      const { orderId } = e.detail
+      setOrders((prev) => prev.filter((o) => o.id !== orderId))
+    }
+    window.addEventListener('orderPaidUpdated', handlePaidUpdated)
+    window.addEventListener('orderCompleted', handleOrderCompleted)
+    return () => {
+      window.removeEventListener('orderPaidUpdated', handlePaidUpdated)
+      window.removeEventListener('orderCompleted', handleOrderCompleted)
+    }
+  }, [])
+
+  useEffect(() => {
     loadOrders()
 
     const unsubscribe = subscribeToOrderRelatedChanges(
@@ -72,7 +98,7 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
         if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
         refreshTimerRef.current = setTimeout(() => {
           loadOrders({ silent: true })
-        }, 150)
+        }, 15)
       },
       () => loadOrders({ silent: true }),
     )
@@ -145,9 +171,44 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
     )
   }
 
+  const clearOrderServedOverrides = (orderId) => {
+    const itemIds = (ordersWithTotals.find((o) => o.id === orderId)?.items || []).map((it) => it.id)
+    if (!itemIds.length) return
+    setServedOverrides((prev) => {
+      const next = { ...prev }
+      itemIds.forEach((id) => delete next[id])
+      return next
+    })
+  }
+
+  const updatePanelTop = useCallback(() => {
+    if (!selectedOrderId || !ordersListPanelRef.current) { setPanelTop(0); return }
+    const cardEl = cardRefs.current[selectedOrderId]
+    if (!cardEl) { setPanelTop(0); return }
+    const listRect = ordersListPanelRef.current.getBoundingClientRect()
+    const cardRect = cardEl.getBoundingClientRect()
+    const offset = cardRect.top - listRect.top
+    // Clamp so panel doesn't overflow the layout's max-height (600px panel, 720px layout)
+    const maxOffset = 720 - 720
+    setPanelTop(Math.max(0, Math.min(offset, maxOffset)))
+  }, [selectedOrderId])
+
+  useEffect(() => {
+    updatePanelTop()
+  }, [selectedOrderId, updatePanelTop])
+
+  useEffect(() => {
+    const cardsEl = ordersListPanelRef.current?.querySelector('.order-cards')
+    if (!cardsEl) return
+    cardsEl.addEventListener('scroll', updatePanelTop, { passive: true })
+    return () => cardsEl.removeEventListener('scroll', updatePanelTop)
+  }, [updatePanelTop])
+
   const completeOrder = async (orderId) => {
+    const orderPaid = ordersWithTotals.find((o) => o.id === orderId)?.paid ?? false
     try {
-      await markOrderCompleted(orderId)
+      await markOrderCompleted(orderId, { paid: orderPaid })
+      clearOrderServedOverrides(orderId)
       setOrders((prev) => prev.filter((o) => o.id !== orderId))
       if (selectedOrderId === orderId) {
         setDetailsOpen(false)
@@ -177,6 +238,7 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
   const cancelOrder = async (orderId) => {
     try {
       await markOrderCancelled(orderId)
+      clearOrderServedOverrides(orderId)
       setOrders((prev) => prev.filter((o) => o.id !== orderId))
       if (selectedOrderId === orderId) {
         setDetailsOpen(false)
@@ -223,7 +285,7 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
 
       <div className="page-content pending-orders-content">
         <div className={`orders-layout ${drawerOpen ? 'drawer-open' : ''}`}>
-          <div className="orders-list-panel">
+          <div className="orders-list-panel" ref={ordersListPanelRef}>
             <div className="orders-list-header">
               <div className="orders-list-col left">Pending Orders</div>
               <div className="orders-list-col">Total</div>
@@ -237,6 +299,7 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
                 <button
                   key={o.id}
                   type="button"
+                  ref={(el) => { if (el) cardRefs.current[o.id] = el; else delete cardRefs.current[o.id] }}
                   className={`order-card ${selectedOrderId === o.id && detailsOpen ? 'active' : ''}`}
                   onClick={() => {
                     setSelectedOrderId(o.id)
@@ -275,7 +338,7 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
           {detailsOpen && selectedOrder ? (
             <>
               <div className="details-backdrop" role="presentation" onClick={() => setDetailsOpen(false)} />
-              <div className="order-details-panel">
+              <div className="order-details-panel" style={{ marginTop: panelTop }}>
               <button className="details-close" type="button" onClick={() => setDetailsOpen(false)}>
                 {'<'} Close
               </button>
@@ -326,7 +389,10 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
                       <div className="item-qty">Qty. {it.qty}</div>
                     </div>
                     <div className="item-right">
-                      <div className="item-price">₱ {formatMoney((Number(it.price || 0) + (it.selectedAddons || []).reduce((a, ad) => a + Number(ad.price || 0), 0)) * Number(it.qty || 0))}</div>
+                      <div className="item-price">₱ {formatMoney(Number(it.price || 0) * Number(it.qty || 0))}</div>
+                      {(it.selectedAddons || []).filter((ad) => Number(ad.price || 0) > 0).map((ad) => (
+                        <div key={ad.id} className="item-addon-price">+ ₱ {formatMoney(Number(ad.price) * Number(it.qty || 0))}</div>
+                      ))}
                       <button
                         type="button"
                         className={`serve-btn ${it.served ? 'served' : 'unserved'}`}
@@ -466,37 +532,36 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
                 {co.cancelledBy ? <div className="details-order-type">Cancelled by: {co.cancelledBy}</div> : null}
 
                 <div className="details-items">
-                  {(co.items || []).map((it) => {
-                    const addonTotal = (it.selectedAddons || []).reduce((a, addon) => a + Number(addon.price || 0), 0)
-                    const lineTotal = (Number(it.price || 0) + addonTotal) * Number(it.qty || 0)
-                    return (
-                      <div key={it.id} className="details-item">
-                        <div className="item-image-wrap">
-                          <img
-                            className="item-image"
-                            src={it.image || placeholderSvg}
-                            alt={it.name}
-                            loading="lazy"
-                            onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = placeholderSvg }}
-                          />
-                        </div>
-                        <div className="item-main">
-                          <div className="item-name">{it.name}</div>
-                          {(it.selectedAddons || []).length > 0 ? (
-                            <div className="item-addons">
-                              {it.selectedAddons.map((addon) => (
-                                <span key={addon.id} className="item-addon-tag">+ {addon.name}{addon.price > 0 ? ` (₱${formatMoney(addon.price)})` : ''}</span>
-                              ))}
-                            </div>
-                          ) : null}
-                          <div className="item-qty">Qty. {it.qty}</div>
-                        </div>
-                        <div className="item-right">
-                          <div className="item-price">₱ {formatMoney(lineTotal)}</div>
-                        </div>
+                  {(co.items || []).map((it) => (
+                    <div key={it.id} className="details-item">
+                      <div className="item-image-wrap">
+                        <img
+                          className="item-image"
+                          src={it.image || placeholderSvg}
+                          alt={it.name}
+                          loading="lazy"
+                          onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = placeholderSvg }}
+                        />
                       </div>
-                    )
-                  })}
+                      <div className="item-main">
+                        <div className="item-name">{it.name}</div>
+                        {(it.selectedAddons || []).length > 0 ? (
+                          <div className="item-addons">
+                            {it.selectedAddons.map((addon) => (
+                              <span key={addon.id} className="item-addon-tag">+ {addon.name}</span>
+                            ))}
+                          </div>
+                        ) : null}
+                        <div className="item-qty">Qty. {it.qty}</div>
+                      </div>
+                      <div className="item-right">
+                        <div className="item-price">₱ {formatMoney(Number(it.price || 0) * Number(it.qty || 0))}</div>
+                        {(it.selectedAddons || []).filter((ad) => Number(ad.price || 0) > 0).map((ad) => (
+                          <div key={ad.id} className="item-addon-price">+ ₱ {formatMoney(Number(ad.price) * Number(it.qty || 0))}</div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
                 <div className="details-footer">

@@ -215,6 +215,17 @@
   font-weight: 800;
 }
 
+.payment-summary-addon-line {
+  opacity: 0.72;
+  padding-left: 0.75rem;
+}
+
+.payment-summary-addon-line .payment-summary-line-name,
+.payment-summary-addon-line .payment-summary-line-amount {
+  font-weight: 600;
+  font-size: 0.78rem;
+}
+
 .payment-summary-total-row {
   display: flex;
   justify-content: space-between;
@@ -315,6 +326,7 @@
 .payment-btn.complete {
   background: #000;
   color: #fff;
+  font-size: 0.82rem;
 }
 
 .payment-btn:disabled {

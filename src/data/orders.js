@@ -65,6 +65,10 @@ const mapOrderRowToUi = (row, { includeServedFlag = false } = {}) => {
   const orderItems = row?.order_items || row?.orderItems || []
   const payments = row?.payments || []
 
+  const firstPayment = Array.isArray(payments) ? payments[0] : (payments || null)
+  const paymentMethod = getField(firstPayment, ['paymentMethod', 'payment_method']) || null
+  const transactionRef = getField(firstPayment, ['transactionRef', 'transaction_ref', 'referenceNumber']) || null
+
   const paid = paymentstatus != null
     ? isPaidStatus(paymentstatus)
     : Array.isArray(payments)
@@ -113,6 +117,8 @@ const mapOrderRowToUi = (row, { includeServedFlag = false } = {}) => {
     discountType,
     cancelledBy,
     isCustomerOrder,
+    paymentMethod,
+    transactionRef,
     items,
   }
 }
@@ -154,7 +160,7 @@ export async function fetchOrdersWithItems({ completed }) {
         selectedAddons,
         products(productName, price, image_path)
       ),
-      payments!fk_payments_orderid(paymentID, totalAmount, paymentTimestamp)
+      payments!fk_payments_orderid(paymentID, totalAmount, paymentMethod, transactionRef, paymentTimestamp)
     `
 
   let data
@@ -187,7 +193,7 @@ export async function fetchOrdersWithItems({ completed }) {
         selectedAddons,
         products(productName, price)
       ),
-      payments!fk_payments_orderid(paymentID, totalAmount, paymentTimestamp)
+      payments!fk_payments_orderid(paymentID, totalAmount, paymentMethod, transactionRef, paymentTimestamp)
     `
 
     const fb = await applyStatusFilter(supabase.from('orders').select(fallbackSelect))
@@ -212,7 +218,7 @@ export async function fetchOrdersWithItems({ completed }) {
         productID,
         products(productName, price)
       ),
-      payments(paymentID, totalAmount, paymentTimestamp)
+      payments(paymentID, totalAmount, paymentMethod, transactionRef, paymentTimestamp)
     `
 
     const fb2 = await applyStatusFilter(supabase.from('orders').select(fallbackUnqualified))
@@ -299,36 +305,40 @@ export async function fetchOrdersWithItems({ completed }) {
   return filtered
 }
 
-export async function markOrderCompleted(orderId) {
+export async function markOrderCompleted(orderId, { paid: knownPaid } = {}) {
   const id = Number(orderId)
   if (!Number.isFinite(id) || id <= 0) throw new Error('markOrderCompleted: orderId must be a positive number')
+
+  invalidateOrdersCache()
   const nowIso = new Date().toISOString()
 
-  // If the order was already paid before completion, do not overwrite it.
-  const { data: existingOrder, error: fetchError } = await supabase
-    .from('orders')
-    .select('paymentstatus')
-    .eq('orderID', orderId)
-    .maybeSingle()
+  let paid = knownPaid
 
-  if (fetchError) throw fetchError
-
-  let paid = isPaidStatus(existingOrder?.paymentstatus)
-
-  if (!paid) {
-    const { data: paymentRows, error: paymentsError } = await supabase
-      .from('payments')
-      .select('paymentID, totalAmount')
+  // Only hit the DB to determine paid status when the caller didn't supply it.
+  if (paid == null) {
+    const { data: existingOrder, error: fetchError } = await supabase
+      .from('orders')
+      .select('paymentstatus')
       .eq('orderID', orderId)
-      .limit(1)
+      .maybeSingle()
 
-    if (paymentsError) throw paymentsError
+    if (fetchError) throw fetchError
+    paid = isPaidStatus(existingOrder?.paymentstatus)
 
-    const row = Array.isArray(paymentRows) ? paymentRows[0] : paymentRows
-    paid = Boolean(row && Number(row?.totalAmount || 0) > 0)
+    if (!paid) {
+      const { data: paymentRows, error: paymentsError } = await supabase
+        .from('payments')
+        .select('paymentID, totalAmount')
+        .eq('orderID', orderId)
+        .limit(1)
+
+      if (paymentsError) throw paymentsError
+      const row = Array.isArray(paymentRows) ? paymentRows[0] : paymentRows
+      paid = Boolean(row && Number(row?.totalAmount || 0) > 0)
+    }
   }
 
-  const nextPaymentStatus = paid ? 'Paid' : (existingOrder?.paymentstatus ?? 'Unpaid')
+  const nextPaymentStatus = paid ? 'Paid' : 'Unpaid'
 
   const { error } = await supabase
     .from('orders')
@@ -336,6 +346,7 @@ export async function markOrderCompleted(orderId) {
     .eq('orderID', orderId)
 
   if (error) throw error
+  window.dispatchEvent(new CustomEvent('orderCompleted', { detail: { orderId } }))
 }
 
 export async function markOrderPreparing(orderId) {
@@ -404,6 +415,8 @@ export async function setOrderPaymentStatus({ orderId, paymentstatus }) {
 }
 
 export async function setOrderPaidStatus({ orderId, paid, subtotal }) {
+  invalidateOrdersCache()
+  window.dispatchEvent(new CustomEvent('orderPaidUpdated', { detail: { orderId, paid } }))
   // Keep the denormalized payment status column in sync.
   await setOrderPaymentStatus({ orderId, paymentstatus: paid ? 'Paid' : 'Unpaid' })
 

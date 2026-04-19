@@ -5,11 +5,12 @@ import './styles/Payment.css'
 import { supabase, getPublicStorageUrl, PRODUCT_IMAGE_BUCKET } from './lib/supabaseClient'
 import { ProcessPaymentDTO } from './data/dto'
 import { guardDto } from './data/guards'
+import { invalidateOrdersCache } from './data/orders'
 import { formatMoney } from './utils/numberFormat'
 import placeholderSvg from '/placeholder.svg'
 
 const DISCOUNT_RATE = 0.2
-const GCashRefPattern = /^\d{10,15}$/
+const GCashRefPattern = /^\d{13}$/
 
 const normalize = (value) => String(value ?? '').trim().toLowerCase().replace(/[^a-z]/g, '')
 const isPaidStatus = (value) => {
@@ -338,6 +339,8 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
 
       if (orderError) throw orderError
 
+      invalidateOrdersCache()
+      window.dispatchEvent(new CustomEvent('orderPaidUpdated', { detail: { orderId: order.id, paid: true } }))
       setShowSuccessModal(true)
     } catch (err) {
       console.error('Payment error:', err)
@@ -409,6 +412,10 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
                   ⚠ Customer applied <strong>{order.discountType}</strong> discount (20%).
                   {discountApplied ? '' : ' Currently removed by staff.'}
                 </div>
+              ) : discountApplied ? (
+                <div className="payment-discount-warning">
+                  ⚠ You applied PWD/Senior discount (20%).
+                </div>
               ) : null}
 
               <div className="payment-item-header">
@@ -449,15 +456,20 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
               <div className="payment-summary-title">Subtotal</div>
 
               <div className="payment-summary-lines">
-                {(order?.items || []).map((it) => {
-                  const addonTotal = (it.selectedAddons || []).reduce((a, ad) => a + Number(ad.price || 0), 0)
-                  return (
-                    <div key={it.id} className="payment-summary-line">
+                {(order?.items || []).map((it) => (
+                  <div key={it.id}>
+                    <div className="payment-summary-line">
                       <span className="payment-summary-line-name">{it.name} x{it.qty}</span>
-                      <span className="payment-summary-line-amount">₱ {formatMoney((Number(it.price || 0) + addonTotal) * Number(it.qty || 0))}</span>
+                      <span className="payment-summary-line-amount">₱ {formatMoney(Number(it.price || 0) * Number(it.qty || 0))}</span>
                     </div>
-                  )
-                })}
+                    {(it.selectedAddons || []).filter((ad) => Number(ad.price || 0) > 0).map((ad) => (
+                      <div key={ad.id} className="payment-summary-line payment-summary-addon-line">
+                        <span className="payment-summary-line-name">+ {ad.name} x{it.qty}</span>
+                        <span className="payment-summary-line-amount">₱ {formatMoney(Number(ad.price) * Number(it.qty || 0))}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
               </div>
 
               <div className="payment-summary-total-row">
@@ -487,18 +499,26 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
                   className="payment-input"
                   type="text"
                   inputMode="decimal"
-                  value={amountReceived}
+                  value={(() => {
+                    if (!amountReceived) return ''
+                    const [int, dec] = amountReceived.split('.')
+                    const formatted = int.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+                    return dec !== undefined ? `${formatted}.${dec}` : formatted
+                  })()}
                   onChange={(e) => {
-                    const val = e.target.value
-                    // Allow empty, or numbers with up to 2 decimal places
-                    if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
-                      setAmountReceived(val)
+                    const raw = e.target.value.replace(/,/g, '')
+                    if (raw === '' || /^\d*\.?\d{0,2}$/.test(raw)) {
+                      if (raw === '' || Number(raw) <= 20000) setAmountReceived(raw)
                     }
                   }}
                   placeholder={isGcash ? formatMoney(total) : '0.00'}
                   disabled={!order || isGcash || isZeroTotal}
                 />
               </div>
+
+              {isGcash && gcashRef ? (
+                <div className="payment-gcash-note">GCash Ref: {gcashRef}</div>
+              ) : null}
 
               <div className="payment-change-row">
                 <div className="payment-change-label">Change</div>
@@ -520,10 +540,6 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
                   Complete Payment
                 </button>
               </div>
-
-              {isGcash && gcashRef ? (
-                <div className="payment-gcash-note">GCash Ref: {gcashRef}</div>
-              ) : null}
             </div>
           </div>
         </div>
@@ -567,12 +583,12 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
               type="text"
               inputMode="numeric"
               value={gcashRefDraft}
+              maxLength={13}
               onChange={(e) => {
-                // Strip non-numeric characters
-                const numericOnly = e.target.value.replace(/[^0-9]/g, '')
+                const numericOnly = e.target.value.replace(/[^0-9]/g, '').slice(0, 13)
                 setGcashRefDraft(numericOnly)
               }}
-              placeholder="e.g. 1754903891"
+              placeholder="e.g. 1234567890123"
             />
             {gcashRefDraft.length > 0 && !GCashRefPattern.test(gcashRefDraft) && (
               <div className="payment-modal-digit-hint">
@@ -586,12 +602,12 @@ function Payment({ onLogout, onNavigate, userRole = 'staff', userName = 'Staff U
                 className="payment-modal-confirm"
                 onClick={confirmGcashReference}
                 disabled={!GCashRefPattern.test(String(gcashRefDraft || '').trim())}
-                title="Transaction reference must be 10-15 digits"
+                title="Transaction reference must be 13 digits"
               >
                 Confirm
               </button>
             </div>
-            <div className="payment-modal-hint">Must be a 10–15 digit code.</div>
+            <div className="payment-modal-hint">Must be a 13-digit code.</div>
           </div>
         </div>
       ) : null}

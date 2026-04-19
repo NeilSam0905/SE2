@@ -13,7 +13,7 @@
 .completed-orders-page .orders-layout {
   display: flex;
   gap: 0;
-  align-items: stretch;
+  align-items: flex-start;
   flex: 0 0 auto;
   background: #f5e6d3;
   overflow-x: hidden;
@@ -66,14 +66,15 @@
   overflow-x: visible;
 }
 
-/* Admin: cap to ~3 cards then scroll */
+/* Admin: cap to ~4 cards then scroll */
 .completed-orders-page .order-cards.admin-view {
-  /* 3 cards × 140px + 2 gaps × 24px + 12px padding = 480px */
-  max-height: 480px;
+  /* 4 cards × 140px + 3 gaps × 24px + 12px padding = 644px */
+  max-height: 644px;
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 0.75rem;
 }
+
 
 .completed-orders-page .order-card {
   width: 100%;
@@ -164,6 +165,8 @@
   background: #fff;
   display: flex;
   flex-direction: column;
+  max-height: 150vh;
+  overflow-y: auto;
   box-sizing: border-box;
 }
 
@@ -252,6 +255,12 @@
 .completed-orders-page .item-price {
   font-weight: 700;
   color: #000;
+}
+
+.completed-orders-page .item-addon-price {
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: #555;
 }
 
 .completed-orders-page .details-footer {
@@ -528,6 +537,27 @@
 .completed-orders-page .export-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Order details panel scrollbar */
+.completed-orders-page .order-details-panel::-webkit-scrollbar {
+  width: 12px;
+}
+
+.completed-orders-page .order-details-panel::-webkit-scrollbar-track {
+  background: #d4c4a8;
+  border-radius: 10px;
+  margin: 5px;
+}
+
+.completed-orders-page .order-details-panel::-webkit-scrollbar-thumb {
+  background: #8B4513;
+  border-radius: 10px;
+  border: 2px solid #d4c4a8;
+}
+
+.completed-orders-page .order-details-panel::-webkit-scrollbar-thumb:hover {
+  background: #6d3410;
 }
 
 /* Recent cards scrollbar (match Dashboard) */
