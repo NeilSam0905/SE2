@@ -290,6 +290,7 @@ function Dashboard({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin
       .from('orders')
       .select('orderID', { count: 'exact', head: true })
       .neq('status', 'Completed')
+      .neq('status', 'Cancelled')
 
     if (completedQuery.error) throw completedQuery.error
     if (pendingQuery.error) throw pendingQuery.error
