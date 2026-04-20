@@ -46,6 +46,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
   const [editingProduct, setEditingProduct] = useState(null)
   const [originalProduct, setOriginalProduct] = useState(null)
   const [confirmState, setConfirmState] = useState({ open: false, mode: null })
+  const [statusConfirm, setStatusConfirm] = useState({ open: false, id: null, newStatus: null, isAddon: false })
   const [resultState, setResultState] = useState({ open: false, title: '', message: '' })
   const [searchTerm, setSearchTerm] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('ALL')
@@ -164,7 +165,6 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
 
   // --- 2. UPDATE STATUS ---
   const handleStatusChange = async (id, newStatus) => {
-    // Optimistic update
     setProducts(products.map(product =>
       product.id === id ? { ...product, status: newStatus } : product
     ))
@@ -172,7 +172,20 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
       await updateProductStatus(userRole, id, newStatus)
     } catch (err) {
       console.error('Status update failed:', err.message)
-      fetchProducts() // revert optimistic update
+      fetchProducts()
+    }
+  }
+
+  const handleStatusConfirm = async () => {
+    const { id, newStatus, isAddon } = statusConfirm
+    setStatusConfirm({ open: false, id: null, newStatus: null, isAddon: false })
+    if (isAddon) {
+      const isAvail = newStatus === 'AVAILABLE'
+      setAddons((prev) => prev.map((a) => a.id === id ? { ...a, is_available: isAvail } : a))
+      const { error } = await supabase.from('addons').update({ is_available: isAvail }).eq('id', id)
+      if (error) { console.error(error.message); fetchAddons() }
+    } else {
+      await handleStatusChange(id, newStatus)
     }
   }
 
@@ -429,11 +442,11 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
                     <div className="menu-cell status-cell">
                       <select
                         value={product.status}
-                        onChange={(e) => handleStatusChange(product.id, e.target.value)}
+                        onChange={(e) => setStatusConfirm({ open: true, id: product.id, newStatus: e.target.value, isAddon: false })}
                         className={`status-select ${product.status === 'AVAILABLE' ? 'available' : 'not-available'}`}
                       >
                         <option value="AVAILABLE">AVAILABLE</option>
-                        <option value="NOT AVAILABLE">NOT AVAILABLE</option>
+                        <option value="UNAVAILABLE">UNAVAILABLE</option>
                       </select>
                     </div>
                     <div className="menu-cell price-cell price-cell-hover">
@@ -472,17 +485,12 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
                     </div>
                     <div className="menu-cell status-cell">
                       <select
-                        value={addon.is_available ? 'AVAILABLE' : 'NOT AVAILABLE'}
-                        onChange={(e) => {
-                          const isAvail = e.target.value === 'AVAILABLE'
-                          setAddons((prev) => prev.map((a) => a.id === addon.id ? { ...a, is_available: isAvail } : a))
-                          supabase.from('addons').update({ is_available: isAvail }).eq('id', addon.id)
-                            .then(({ error }) => { if (error) { console.error(error.message); fetchAddons() } })
-                        }}
+                        value={addon.is_available ? 'AVAILABLE' : 'UNAVAILABLE'}
+                        onChange={(e) => setStatusConfirm({ open: true, id: addon.id, newStatus: e.target.value, isAddon: true })}
                         className={`status-select ${addon.is_available ? 'available' : 'not-available'}`}
                       >
                         <option value="AVAILABLE">AVAILABLE</option>
-                        <option value="NOT AVAILABLE">NOT AVAILABLE</option>
+                        <option value="UNAVAILABLE">UNAVAILABLE</option>
                       </select>
                     </div>
                     <div className="menu-cell price-cell">
@@ -526,7 +534,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
                     <label>STATUS</label>
                     <select value={newProduct.status} onChange={(e) => setNewProduct({...newProduct, status: e.target.value})} className={`modal-status-select ${newProduct.status === 'AVAILABLE' ? 'available' : 'not-available'}`}>
                       <option value="AVAILABLE">AVAILABLE</option>
-                      <option value="NOT AVAILABLE">NOT AVAILABLE</option>
+                      <option value="UNAVAILABLE">UNAVAILABLE</option>
                     </select>
                   </div>
                   <div className="form-group">
@@ -589,7 +597,7 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
                     <label>STATUS</label>
                     <select value={editingProduct.status} onChange={(e) => setEditingProduct({...editingProduct, status: e.target.value})} className={`modal-status-select ${editingProduct.status === 'AVAILABLE' ? 'available' : 'not-available'}`}>
                       <option value="AVAILABLE">AVAILABLE</option>
-                      <option value="NOT AVAILABLE">NOT AVAILABLE</option>
+                      <option value="UNAVAILABLE">UNAVAILABLE</option>
                     </select>
                   </div>
                   <div className="form-group">
@@ -628,6 +636,16 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
 
       <ConfirmModal open={resultState.open} title={resultState.title} message={resultState.message} showCancel={false} confirmText="OK" onConfirm={() => setResultState({ open: false, title: '', message: '' })} />
 
+      <ConfirmModal
+        open={statusConfirm.open}
+        title="Change availability status?"
+        message={`You are about to change the status to ${statusConfirm.newStatus}. Are you sure?`}
+        cancelText="Cancel"
+        confirmText="Yes, change"
+        onCancel={() => setStatusConfirm({ open: false, id: null, newStatus: null, isAddon: false })}
+        onConfirm={handleStatusConfirm}
+      />
+
       {/* Edit Addon Modal */}
       {editingAddon && (
         <div className="modal-overlay" onClick={() => setEditingAddon(null)}>
@@ -644,12 +662,12 @@ function Menu({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User
               <div className="form-group">
                 <label>AVAILABILITY</label>
                 <select
-                  value={editingAddon.is_available ? 'AVAILABLE' : 'NOT AVAILABLE'}
+                  value={editingAddon.is_available ? 'AVAILABLE' : 'UNAVAILABLE'}
                   onChange={(e) => setEditingAddon((prev) => ({ ...prev, is_available: e.target.value === 'AVAILABLE' }))}
                   className={`modal-status-select ${editingAddon.is_available ? 'available' : 'not-available'}`}
                 >
                   <option value="AVAILABLE">AVAILABLE</option>
-                  <option value="NOT AVAILABLE">NOT AVAILABLE</option>
+                  <option value="UNAVAILABLE">UNAVAILABLE</option>
                 </select>
               </div>
               <div className="form-group price-wide">

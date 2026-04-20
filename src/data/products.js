@@ -69,6 +69,7 @@ export async function fetchPreviousPrices() {
     .order('created_at', { ascending: false })
 
   if (!data) return {}
+  // Keyed by productID — the stable natural key across SCD Type 2 versions.
   const prevMap = {}
   for (const row of data) {
     if (!prevMap[row.productID]) prevMap[row.productID] = row.price
@@ -153,7 +154,16 @@ export async function updateProduct(userRole, productId, raw, imageFile = null) 
   const dto = new UpdateProductDTO(raw)
   guardDto(dto)
 
-  // Prevent name collision with a different product.
+  // Fetch current row to compare price and carry forward image_path.
+  const { data: current, error: fetchError } = await supabase
+    .from('products')
+    .select('productID, price, image_path')
+    .eq('productID', id)
+    .eq('is_current', true)
+    .single()
+  if (fetchError || !current) throw new Error('Product not found.')
+
+  // Prevent name collision with a different product (exclude by natural key productID).
   const { data: conflict } = await supabase
     .from('products')
     .select('productID')
@@ -163,30 +173,68 @@ export async function updateProduct(userRole, productId, raw, imageFile = null) 
     .limit(1)
   if (conflict?.length) throw new Error('Another product with the same name already exists in the menu.')
 
-  const { error: updateError } = await supabase
-    .from('products')
-    .update({
-      productName: dto.name,
-      price: dto.price,
-      status: dto.status,
-      type: dto.type,
-      image_path: dto.imagePath,
-      description: dto.description,
-      is_best_seller: dto.isBestSeller,
-    })
-    .eq('productID', id)
-    .eq('is_current', true)
+  const priceChanged = Number(current.price) !== dto.price
 
-  if (updateError) throw updateError
-
-  if (imageFile) {
-    const uploaded = await uploadProductImage({ file: imageFile, productId: id })
-    const { error: imgError } = await supabase
+  if (priceChanged) {
+    // SCD Type 2: retire current row, insert new version with same productID (natural key).
+    // The DB auto-generates a new product_sid (surrogate PK) for the new row.
+    const { error: archiveError } = await supabase
       .from('products')
-      .update({ image_path: uploaded.path })
+      .update({ is_current: false })
       .eq('productID', id)
       .eq('is_current', true)
-    if (imgError) throw imgError
+    if (archiveError) throw archiveError
+
+    const { data: newRow, error: insertError } = await supabase
+      .from('products')
+      .insert([{
+        productID: id,
+        productName: dto.name,
+        price: dto.price,
+        status: dto.status,
+        type: dto.type,
+        image_path: dto.imagePath ?? current.image_path,
+        description: dto.description,
+        is_best_seller: dto.isBestSeller,
+        is_current: true,
+      }])
+      .select('product_sid')
+      .single()
+    if (insertError) throw insertError
+
+    if (imageFile) {
+      const uploaded = await uploadProductImage({ file: imageFile, productId: id })
+      const { error: imgError } = await supabase
+        .from('products')
+        .update({ image_path: uploaded.path })
+        .eq('product_sid', newRow.product_sid)
+      if (imgError) throw imgError
+    }
+  } else {
+    // Price unchanged: update in place.
+    const { error: updateError } = await supabase
+      .from('products')
+      .update({
+        productName: dto.name,
+        status: dto.status,
+        type: dto.type,
+        image_path: dto.imagePath,
+        description: dto.description,
+        is_best_seller: dto.isBestSeller,
+      })
+      .eq('productID', id)
+      .eq('is_current', true)
+    if (updateError) throw updateError
+
+    if (imageFile) {
+      const uploaded = await uploadProductImage({ file: imageFile, productId: id })
+      const { error: imgError } = await supabase
+        .from('products')
+        .update({ image_path: uploaded.path })
+        .eq('productID', id)
+        .eq('is_current', true)
+      if (imgError) throw imgError
+    }
   }
 }
 
