@@ -781,6 +781,23 @@
   margin-top: 0.15rem;
 }
 
+.completed-orders-page .cancel-order-btn {
+  width: 100%;
+  margin-top: 0.5rem;
+  border: 2px solid #c1121f;
+  border-radius: 999px;
+  padding: 0.65rem 1rem;
+  font-weight: 900;
+  cursor: pointer;
+  background: #fff;
+  color: #c1121f;
+}
+
+.completed-orders-page .cancel-order-btn:hover {
+  background: #c1121f;
+  color: #fff;
+}
+
 .completed-orders-page .details-time-info {
   font-size: 0.875rem;
   font-weight: 700;
