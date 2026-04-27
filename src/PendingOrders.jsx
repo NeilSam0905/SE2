@@ -537,7 +537,14 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
                 {co.queueNumber ? <div className="details-queue">Queue: {co.queueNumber}</div> : null}
                 {co.orderType ? <div className="details-order-type">Order Type: {co.orderType}</div> : null}
                 <div className="details-status" style={{ color: '#c1121f' }}>Status: Cancelled</div>
-                {co.cancelledBy ? <div className="details-order-type">Cancelled by: {co.cancelledBy}</div> : null}
+                {co.cancelledBy ? (
+                  <div className="details-order-type">
+                    Cancelled by: <span style={{ color: '#1565c0' }}>{co.cancelledBy.charAt(0).toUpperCase() + co.cancelledBy.slice(1)}</span>
+                  </div>
+                ) : null}
+                <div className="details-order-type">
+                  Reason: <span style={{ color: co.cancelReason ? '#e65100' : 'rgba(0,0,0,0.4)' }}>{co.cancelReason || '—'}</span>
+                </div>
 
                 <div className="details-items">
                   {(co.items || []).map((it) => (

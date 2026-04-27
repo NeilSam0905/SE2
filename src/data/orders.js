@@ -60,6 +60,7 @@ const mapOrderRowToUi = (row, { includeServedFlag = false } = {}) => {
   const queueNumber = getField(row, ['queueNumber', 'queue_number']) || null
   const discountType = getField(row, ['discountType', 'discount_type']) || 'None'
   const cancelledBy = getField(row, ['cancelled_by', 'cancelledBy']) || null
+  const cancelReason = getField(row, ['reason']) || null
   const isCustomerOrder = sessionID != null
 
   const orderItems = row?.order_items || row?.orderItems || []
@@ -117,6 +118,7 @@ const mapOrderRowToUi = (row, { includeServedFlag = false } = {}) => {
     queueNumber,
     discountType,
     cancelledBy,
+    cancelReason,
     isCustomerOrder,
     paymentMethod,
     transactionRef,
@@ -154,6 +156,7 @@ export async function fetchOrdersWithItems({ completed }) {
       queueNumber,
       discountType,
       cancelled_by,
+      reason,
       order_items(
         orderItemID,
         quantity,

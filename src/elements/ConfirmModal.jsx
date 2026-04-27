@@ -39,13 +39,7 @@ function ConfirmModal({
               onChange={(e) => setReason(e.target.value)}
               placeholder="Please enter a reason for cancellation..."
               rows={3}
-              style={{
-                width: '100%',
-                padding: '8px',
-                borderRadius: '4px',
-                border: '1px solid #ccc',
-                resize: 'vertical'
-              }}
+              className="modal-textarea"
             />
           </div>
         )}

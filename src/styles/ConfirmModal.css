@@ -71,3 +71,27 @@
 .confirm-btn.confirm:hover {
   background: rgba(0, 0, 0, 0.9);
 }
+
+.confirm-modal .modal-textarea {
+  padding: 0.75rem 1.25rem;
+  border: 2px solid #000;
+  border-radius: 16px;
+  font-size: 1rem;
+  font-family: inherit;
+  background-color: #fff;
+  color: #000;
+  font-weight: 600;
+  resize: vertical;
+  width: 100%;
+  box-sizing: border-box;
+  line-height: 1.5;
+}
+
+.confirm-modal .modal-textarea:focus {
+  outline: none;
+  border-color: #6a1b1a;
+}
+
+.confirm-modal .modal-textarea::placeholder {
+  color: rgba(0, 0, 0, 0.5);
+}
