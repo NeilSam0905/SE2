@@ -365,7 +365,7 @@ export async function markOrderPreparing(orderId) {
   if (error) throw error
 }
 
-export async function markOrderCancelled(orderId) {
+export async function markOrderCancelled(orderId, reasonText) {
   const id = Number(orderId)
   if (!Number.isFinite(id) || id <= 0) throw new Error('markOrderCancelled: orderId must be a positive number')
 
@@ -377,6 +377,7 @@ export async function markOrderCancelled(orderId) {
       status: 'Cancelled',
       cancelled_at: new Date().toISOString(),
       cancelled_by: 'staff',
+      reason: reasonText, // <-- Changed to match your database!
     })
     .eq('orderID', id)
 
@@ -395,7 +396,7 @@ export async function uncancelOrder(orderId) {
       status: 'Pending',
       cancelled_at: null,
       cancelled_by: null,
-      cancellation_reason: null,
+      reason: null, // <-- Changed to match your database!
     })
     .eq('orderID', id)
 

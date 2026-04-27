@@ -3,7 +3,7 @@ import Navbar from './elements/Navbar'
 import ConfirmModal from './elements/ConfirmModal'
 import './styles/CompletedOrders.css'
 import { formatMoney } from './utils/numberFormat'
-import { fetchOrdersWithItems, setOrderPaidStatus, subscribeToOrderRelatedChanges } from './data/orders'
+import { fetchOrdersWithItems, setOrderPaidStatus, subscribeToOrderRelatedChanges, markOrderCancelled } from './data/orders'
 import placeholderSvg from '/placeholder.svg'
 
 function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'Admin User' }) {
@@ -78,6 +78,10 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
   const [historySearch, setHistorySearch] = useState('')
 
   const [confirmUnpaidOrderId, setConfirmUnpaidOrderId] = useState(null)
+  
+  // New State for Cancellation
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+  const [pendingCancelOrderId, setPendingCancelOrderId] = useState(null)
 
   const [exportFormat, setExportFormat] = useState('csv')
   const [exportPeriod, setExportPeriod] = useState('monthly')
@@ -209,6 +213,34 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
     } else {
       togglePaid(orderId)
     }
+  }
+
+// Add the reason parameter here
+  const cancelHistoryOrder = async (orderId, reason) => { 
+    try {
+      // Pass the reason to your database function
+      await markOrderCancelled(orderId, reason) 
+      
+      setOrders((prev) => prev.filter((o) => o.id !== orderId))
+      
+      if (selectedHistoryId === orderId) {
+        setSelectedHistoryId(null)
+      }
+      if (selectedOrderId === orderId) {
+        setDetailsOpen(false)
+        setSelectedOrderId(null)
+      }
+      
+      loadOrders({ silent: true })
+    } catch (e) {
+      console.error('Failed to cancel order:', e)
+      setLoadError('Failed to cancel order.')
+    }
+  }
+
+  const requestCancelOrder = (orderId) => {
+    setPendingCancelOrderId(orderId)
+    setShowCancelConfirm(true)
   }
 
   const exportRows = useMemo(() => {
@@ -687,6 +719,16 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
                     >
                       {selectedHistoryOrder.paid ? 'MARK AS UNPAID' : 'MARK AS PAID'}
                     </button>
+                    
+                    {/* The new cancel button */}
+                    <button 
+                      type="button" 
+                      className="cancel-order-btn" 
+                      onClick={() => requestCancelOrder(selectedHistoryOrder.id)}
+                      style={{ marginTop: '8px' }}
+                    >
+                      CANCEL ORDER
+                    </button>
                   </div>
                 </div>
               ) : null}
@@ -778,6 +820,31 @@ function CompletedOrders({ onLogout, onNavigate, userRole = 'admin', userName = 
         onConfirm={() => {
           togglePaid(confirmUnpaidOrderId)
           setConfirmUnpaidOrderId(null)
+        }}
+      />
+
+      <ConfirmModal
+        open={showCancelConfirm}
+        title={
+          <>
+            Cancel this completed order?
+            <br />
+            This will move it to Cancelled Orders.
+          </>
+        }
+        message="Are you sure you want to cancel this order? This will remove it from the completed history and affect total sales figures."
+        cancelText="Go Back"
+        confirmText="Yes, cancel order"
+        requireReason={true} // <-- This is the magic switch!
+        onCancel={() => {
+          setShowCancelConfirm(false)
+          setPendingCancelOrderId(null)
+        }}
+        onConfirm={(reason) => { // <-- Now it catches the typed reason
+          const orderId = pendingCancelOrderId
+          setShowCancelConfirm(false)
+          setPendingCancelOrderId(null)
+          if (orderId != null) cancelHistoryOrder(orderId, reason) 
         }}
       />
     </div>

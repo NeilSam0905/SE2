@@ -237,10 +237,12 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
       setLoadError('Failed to mark order as preparing.')
     }
   }
-
-  const cancelOrder = async (orderId) => {
+// Add the reason parameter here
+  const cancelOrder = async (orderId, reason) => {
     try {
-      await markOrderCancelled(orderId)
+      // Pass the reason to the database function
+      await markOrderCancelled(orderId, reason) 
+      
       clearOrderServedOverrides(orderId)
       setOrders((prev) => prev.filter((o) => o.id !== orderId))
       if (selectedOrderId === orderId) {
@@ -644,15 +646,16 @@ function PendingOrders({ onLogout, onNavigate, userRole = 'admin', userName = 'A
         message="Are you sure you want to cancel this order?"
         cancelText="Go Back"
         confirmText="Yes, cancel order"
+        requireReason={true} // <-- Turn on the textbox!
         onCancel={() => {
           setShowCancelConfirm(false)
           setPendingCancelOrderId(null)
         }}
-        onConfirm={() => {
+        onConfirm={(reason) => { // <-- Catch the typed reason!
           const orderId = pendingCancelOrderId
           setShowCancelConfirm(false)
           setPendingCancelOrderId(null)
-          if (orderId != null) cancelOrder(orderId)
+          if (orderId != null) cancelOrder(orderId, reason)
         }}
       />
 
